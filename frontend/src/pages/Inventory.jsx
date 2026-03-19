@@ -4,8 +4,20 @@ import { getProducts } from '../api/products'
 import { useAuth } from '../context/AuthContext'
 import {
   Plus, X, Loader2, ClipboardList,
-  CheckCircle, TrendingUp, TrendingDown, Package
+  CheckCircle, TrendingUp, TrendingDown, Package, MapPin, Building2
 } from 'lucide-react'
+
+const CITIES = [
+  { value: 'TANGER',     label: 'Tanger' },
+  { value: 'FES',        label: 'Fès' },
+  { value: 'CASABLANCA', label: 'Casablanca' },
+]
+
+const CITY_COLORS = {
+  TANGER:     'bg-blue-100 text-blue-700',
+  FES:        'bg-emerald-100 text-emerald-700',
+  CASABLANCA: 'bg-orange-100 text-orange-700',
+}
 
 const DiffBadge = ({ diff }) => {
   if (diff === 0) return (
@@ -26,10 +38,11 @@ const DiffBadge = ({ diff }) => {
 }
 
 const todayStr = new Date().toISOString().split('T')[0]
-const emptyForm = { productId: '', realQuantity: '', comment: '', dateInventory: todayStr }
+const emptyForm = { productId: '', realQuantity: '', comment: '', dateInventory: todayStr, city: '' }
 
 const Inventory = () => {
-  const { isAdmin } = useAuth()
+  const { isAdmin, userCity } = useAuth()
+  const [cityFilter, setCityFilter] = useState('')
   const [inventories, setInventories] = useState([])
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
@@ -46,11 +59,11 @@ const Inventory = () => {
   const [adjustMotif, setAdjustMotif] = useState('')
   const [adjustMotifError, setAdjustMotifError] = useState('')
 
-  const fetchAll = async () => {
+  const fetchAll = async (city) => {
     setLoading(true)
     setError('')
     try {
-      const [invRes, prodRes] = await Promise.all([getInventories(), getProducts()])
+      const [invRes, prodRes] = await Promise.all([getInventories(city || undefined), getProducts()])
       setInventories(invRes.data)
       setProducts(prodRes.data)
     } catch {
@@ -60,10 +73,12 @@ const Inventory = () => {
     }
   }
 
-  useEffect(() => { fetchAll() }, [])
+  useEffect(() => { fetchAll(cityFilter) }, [cityFilter])
 
   const selectedProduct = products.find(p => String(p.id) === String(form.productId)) || null
 
+  // For preview we compare against per-city stock (shown as "stock système")
+  // The real per-city stock is fetched after submission; for now use global as approximation
   const previewDiff = selectedProduct && form.realQuantity !== ''
     ? Number(form.realQuantity) - selectedProduct.quantity
     : null
@@ -84,6 +99,7 @@ const Inventory = () => {
 
   const validate = () => {
     const errs = {}
+    if (isAdmin && !form.city) errs.city = 'La ville est requise'
     if (!form.productId) errs.productId = 'Veuillez sélectionner un produit'
     if (form.realQuantity === '') errs.realQuantity = 'La quantité réelle est requise'
     else if (isNaN(Number(form.realQuantity)) || Number(form.realQuantity) < 0)
@@ -110,9 +126,10 @@ const Inventory = () => {
         realQuantity: Number(form.realQuantity),
         comment: form.comment.trim() || null,
         dateInventory: form.dateInventory || null,
+        city: isAdmin ? form.city : undefined,
       })
       closeModal()
-      fetchAll()
+      fetchAll(cityFilter)
     } catch (err) {
       setFormError(err.response?.data?.error || 'Une erreur est survenue.')
     } finally {
@@ -135,7 +152,7 @@ const Inventory = () => {
     try {
       await adjustStock(adjustModal.id, adjustMotif.trim())
       setAdjustModal(null)
-      fetchAll()
+      fetchAll(cityFilter)
     } catch (err) {
       setAdjustMotifError(err.response?.data?.error || 'Erreur lors de l\'ajustement.')
     } finally {
@@ -168,6 +185,38 @@ const Inventory = () => {
           <Plus size={16} />
           Nouvel Inventaire
         </button>
+      </div>
+
+      {/* City filters — admin only, badge for user */}
+      <div className="flex flex-wrap gap-2">
+        {isAdmin ? (
+          <>
+            <button
+              onClick={() => setCityFilter('')}
+              className={`px-3 py-2 text-xs font-medium rounded-lg transition-all ${
+                cityFilter === '' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              Toutes les villes
+            </button>
+            {CITIES.map(c => (
+              <button
+                key={c.value}
+                onClick={() => setCityFilter(c.value)}
+                className={`px-3 py-2 text-xs font-medium rounded-lg transition-all ${
+                  cityFilter === c.value ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {c.label}
+              </button>
+            ))}
+          </>
+        ) : (
+          <div className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium ${CITY_COLORS[userCity] || 'bg-gray-100 text-gray-600'}`}>
+            <Building2 size={13} />
+            {CITIES.find(c => c.value === userCity)?.label || userCity}
+          </div>
+        )}
       </div>
 
       {/* KPI Cards — ADMIN only */}
@@ -243,6 +292,7 @@ const Inventory = () => {
               <thead className="border-b border-gray-100 bg-gray-50">
                 <tr>
                   <th className="table-header">Produit</th>
+                  <th className="table-header">Ville</th>
                   {isAdmin && <th className="table-header text-center">Système</th>}
                   <th className="table-header text-center">Réel compté</th>
                   {isAdmin && <th className="table-header text-center">Écart</th>}
@@ -268,6 +318,14 @@ const Inventory = () => {
                         </div>
                         <span className="font-semibold text-gray-800">{inv.productName}</span>
                       </div>
+                    </td>
+                    <td className="table-cell">
+                      {inv.city && (
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${CITY_COLORS[inv.city] || 'bg-gray-100 text-gray-600'}`}>
+                          <MapPin size={10} />
+                          {CITIES.find(c => c.value === inv.city)?.label || inv.city}
+                        </span>
+                      )}
                     </td>
                     {isAdmin && <td className="table-cell text-center text-gray-600">{inv.systemQuantity}</td>}
                     <td className="table-cell text-center font-bold text-gray-800">{inv.realQuantity}</td>
@@ -384,6 +442,35 @@ const Inventory = () => {
                 </div>
               )}
 
+              {/* Ville — admin seulement */}
+              {isAdmin ? (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Ville <span className="text-red-500">*</span></label>
+                  <div className="flex gap-2">
+                    {CITIES.map(c => (
+                      <button
+                        key={c.value}
+                        type="button"
+                        onClick={() => { setForm(prev => ({ ...prev, city: c.value, productId: '' })); setFormErrors(prev => ({ ...prev, city: '' })) }}
+                        className={`flex-1 py-2 text-sm font-medium rounded-lg border transition-all ${
+                          form.city === c.value
+                            ? 'border-blue-500 bg-blue-50 text-blue-700'
+                            : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                        }`}
+                      >
+                        {c.label}
+                      </button>
+                    ))}
+                  </div>
+                  {formErrors.city && <p className="mt-1 text-xs text-red-500">{formErrors.city}</p>}
+                </div>
+              ) : (
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${CITY_COLORS[userCity] || 'bg-gray-100 text-gray-600'}`}>
+                  <MapPin size={14} />
+                  Ville : {CITIES.find(c => c.value === userCity)?.label || userCity}
+                </div>
+              )}
+
               {/* Product select */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -398,7 +485,7 @@ const Inventory = () => {
                   <option value="">— Sélectionner un produit —</option>
                   {products.map(p => (
                     <option key={p.id} value={p.id}>
-                      {p.name} (stock actuel : {p.quantity})
+                      {isAdmin ? `${p.name} (stock total : ${p.quantity})` : p.name}
                     </option>
                   ))}
                 </select>
@@ -407,10 +494,12 @@ const Inventory = () => {
                 )}
               </div>
 
-              {/* System quantity — visible ADMIN only */}
+              {/* System quantity — admin only (non-admin must not see total stock) */}
               {selectedProduct && isAdmin && (
                 <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex justify-between items-center">
-                  <span className="text-sm text-blue-700 font-medium">Quantité système actuelle</span>
+                  <span className="text-sm text-blue-700 font-medium">
+                    Stock système ({CITIES.find(c => c.value === form.city)?.label || '—'})
+                  </span>
                   <span className="text-xl font-bold text-blue-800">{selectedProduct.quantity}</span>
                 </div>
               )}

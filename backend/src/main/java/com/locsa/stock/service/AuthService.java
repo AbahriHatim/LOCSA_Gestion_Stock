@@ -1,9 +1,7 @@
 package com.locsa.stock.service;
 
-import com.locsa.stock.dto.AuthResponse;
-import com.locsa.stock.dto.LoginRequest;
-import com.locsa.stock.dto.RegisterRequest;
-import com.locsa.stock.dto.UserResponse;
+import com.locsa.stock.dto.*;
+import com.locsa.stock.entity.Role;
 import com.locsa.stock.entity.User;
 import com.locsa.stock.repository.UserRepository;
 import com.locsa.stock.security.JwtUtil;
@@ -37,31 +35,83 @@ public class AuthService {
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         String token = jwtUtil.generateToken(userDetails);
-        return new AuthResponse(token, user.getUsername(), user.getRole().name());
+        String city = user.getCity() != null ? user.getCity().name() : null;
+        return new AuthResponse(token, user.getUsername(), user.getRole().name(), city);
     }
 
     public AuthResponse register(RegisterRequest request) {
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new RuntimeException("Username already exists");
         }
+        if (request.getRole() == Role.USER && request.getCity() == null) {
+            throw new RuntimeException("La ville est requise pour un utilisateur");
+        }
 
         User user = User.builder()
                 .username(request.getUsername())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .role(request.getRole())
+                .city(request.getRole() == Role.USER ? request.getCity() : null)
                 .build();
 
         userRepository.save(user);
 
         UserDetails userDetails = userDetailsService.loadUserByUsername(user.getUsername());
         String token = jwtUtil.generateToken(userDetails);
-        return new AuthResponse(token, user.getUsername(), user.getRole().name());
+        String city = user.getCity() != null ? user.getCity().name() : null;
+        return new AuthResponse(token, user.getUsername(), user.getRole().name(), city);
     }
 
     public List<UserResponse> getAllUsers() {
         return userRepository.findAll().stream()
-                .map(u -> new UserResponse(u.getId(), u.getUsername(), u.getRole().name()))
+                .map(u -> new UserResponse(u.getId(), u.getUsername(), u.getRole().name(),
+                        u.getCity() != null ? u.getCity().name() : null, u.isActive()))
                 .toList();
+    }
+
+    public UserResponse updateUser(Long id, UpdateUserRequest request) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+
+        if (request.getUsername() != null && !request.getUsername().isBlank()) {
+            String newUsername = request.getUsername().trim();
+            if (!newUsername.equals(user.getUsername()) && userRepository.existsByUsername(newUsername)) {
+                throw new RuntimeException("Ce nom d'utilisateur est déjà pris");
+            }
+            user.setUsername(newUsername);
+        }
+        if (request.getRole() != null) {
+            user.setRole(request.getRole());
+            if (request.getRole() == Role.ADMIN) {
+                user.setCity(null);
+            }
+        }
+        if (request.getCity() != null) {
+            user.setCity(request.getCity());
+        }
+
+        userRepository.save(user);
+        return new UserResponse(user.getId(), user.getUsername(), user.getRole().name(),
+                user.getCity() != null ? user.getCity().name() : null, user.isActive());
+    }
+
+    public void changePassword(Long id, String newPassword) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+    }
+
+    public UserResponse toggleActive(Long id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        if (user.getRole() == Role.ADMIN) {
+            throw new RuntimeException("Impossible de suspendre un administrateur");
+        }
+        user.setActive(!user.isActive());
+        userRepository.save(user);
+        return new UserResponse(user.getId(), user.getUsername(), user.getRole().name(),
+                user.getCity() != null ? user.getCity().name() : null, user.isActive());
     }
 
     public void deleteUser(Long id) {

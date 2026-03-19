@@ -1,5 +1,6 @@
 package com.locsa.stock.entity;
 
+import com.locsa.stock.entity.City;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDate;
@@ -38,4 +39,8 @@ public class Inventory {
 
     @Column(nullable = false)
     private String createdBy;
+
+    @Enumerated(EnumType.STRING)
+    @Column(columnDefinition = "varchar(20) default 'TANGER'")
+    private City city;
 }

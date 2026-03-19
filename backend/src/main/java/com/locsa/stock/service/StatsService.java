@@ -2,6 +2,7 @@ package com.locsa.stock.service;
 
 import com.locsa.stock.dto.StatsResponse;
 import com.locsa.stock.dto.StatsResponse.ChartPoint;
+import com.locsa.stock.entity.City;
 import com.locsa.stock.entity.StockEntry;
 import com.locsa.stock.entity.StockExit;
 import com.locsa.stock.repository.StockEntryRepository;
@@ -21,7 +22,7 @@ public class StatsService {
     private final StockEntryRepository entryRepository;
     private final StockExitRepository exitRepository;
 
-    public StatsResponse getStats(String period) {
+    public StatsResponse getStats(String period, City city) {
         LocalDate today = LocalDate.now();
         LocalDate from = switch (period) {
             case "week"    -> today.minusDays(6);
@@ -31,8 +32,16 @@ public class StatsService {
             default        -> LocalDate.of(2000, 1, 1); // all
         };
 
-        List<StockEntry> entries = entryRepository.findByPeriod(from, today);
-        List<StockExit>  exits   = exitRepository.findByPeriod(from, today);
+        List<StockEntry> entries;
+        List<StockExit>  exits;
+
+        if (city != null) {
+            entries = entryRepository.findByPeriodAndCity(from, today, city);
+            exits   = exitRepository.findByPeriodAndCity(from, today, city);
+        } else {
+            entries = entryRepository.findByPeriod(from, today);
+            exits   = exitRepository.findByPeriod(from, today);
+        }
 
         long entriesTotal = entries.stream().mapToLong(StockEntry::getQuantity).sum();
         long exitsTotal   = exits.stream().mapToLong(StockExit::getQuantity).sum();
@@ -45,11 +54,9 @@ public class StatsService {
     private List<ChartPoint> buildChart(String period, LocalDate from, LocalDate today,
                                         List<StockEntry> entries, List<StockExit> exits) {
 
-        // key -> label, value -> {entries, exits}
         LinkedHashMap<String, long[]> map = new LinkedHashMap<>();
 
         if (period.equals("week") || period.equals("month")) {
-            // group by day
             DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM");
             LocalDate cursor = from;
             while (!cursor.isAfter(today)) {
@@ -66,7 +73,6 @@ public class StatsService {
             });
 
         } else if (period.equals("3months")) {
-            // group by week: "Sem dd/MM"
             DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM");
             LocalDate cursor = from;
             while (!cursor.isAfter(today)) {
@@ -87,7 +93,6 @@ public class StatsService {
             });
 
         } else {
-            // year / all: group by month "MMM yyyy"
             DateTimeFormatter fmt = DateTimeFormatter.ofPattern("MMM yyyy", Locale.FRENCH);
             if (period.equals("year")) {
                 LocalDate cursor = from.withDayOfMonth(1);

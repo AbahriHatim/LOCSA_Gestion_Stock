@@ -1,5 +1,6 @@
 package com.locsa.stock.dto;
 
+import com.locsa.stock.entity.City;
 import com.locsa.stock.entity.Role;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -16,4 +17,6 @@ public class RegisterRequest {
 
     @NotNull(message = "Role is required")
     private Role role;
+
+    private City city; // required for USER, null for ADMIN
 }

@@ -1,5 +1,6 @@
 package com.locsa.stock.dto;
 
+import com.locsa.stock.entity.City;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -19,4 +20,6 @@ public class InventoryRequest {
     private String comment;
 
     private LocalDate dateInventory;
+
+    private City city; // optional — backend overrides with user's city for non-admin
 }

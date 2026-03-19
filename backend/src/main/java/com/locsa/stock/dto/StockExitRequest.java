@@ -1,5 +1,6 @@
 package com.locsa.stock.dto;
 
+import com.locsa.stock.entity.City;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -23,4 +24,6 @@ public class StockExitRequest {
     private String beneficiary;
 
     private String comment;
+
+    private City city; // optional — backend overrides with user's city for non-admin
 }

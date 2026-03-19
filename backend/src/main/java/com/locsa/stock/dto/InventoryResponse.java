@@ -16,4 +16,5 @@ public class InventoryResponse {
     private String comment;
     private String adjustmentComment;
     private String createdBy;
+    private String city;
 }

@@ -1,23 +1,39 @@
 import React, { useEffect, useState } from 'react'
 import { getEntries, createEntry } from '../api/entries'
 import { getProducts } from '../api/products'
-import { Plus, X, Loader2, TrendingUp, Search } from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
+import { Plus, X, Loader2, TrendingUp, Search, MapPin, Building2 } from 'lucide-react'
 
 const today = new Date().toISOString().split('T')[0]
+
+const CITIES = [
+  { value: 'TANGER',     label: 'Tanger' },
+  { value: 'FES',        label: 'Fès' },
+  { value: 'CASABLANCA', label: 'Casablanca' },
+]
+
+const CITY_COLORS = {
+  TANGER:     'bg-blue-100 text-blue-700',
+  FES:        'bg-emerald-100 text-emerald-700',
+  CASABLANCA: 'bg-orange-100 text-orange-700',
+}
 
 const emptyForm = {
   productName: '',
   dateEntry: today,
   quantity: '',
   comment: '',
+  city: '',
 }
 
 const Entries = () => {
+  const { isAdmin, userCity } = useAuth()
   const [entries, setEntries] = useState([])
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
+  const [cityFilter, setCityFilter] = useState('')
 
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState(emptyForm)
@@ -26,11 +42,14 @@ const Entries = () => {
   const [formError, setFormError] = useState('')
   const [showSuggestions, setShowSuggestions] = useState(false)
 
-  const fetchAll = async () => {
+  const fetchAll = async (city) => {
     setLoading(true)
     setError('')
     try {
-      const [entriesRes, productsRes] = await Promise.all([getEntries(), getProducts()])
+      const [entriesRes, productsRes] = await Promise.all([
+        getEntries(city || undefined),
+        getProducts(),
+      ])
       setEntries(entriesRes.data)
       setProducts(productsRes.data)
     } catch {
@@ -40,7 +59,7 @@ const Entries = () => {
     }
   }
 
-  useEffect(() => { fetchAll() }, [])
+  useEffect(() => { fetchAll(cityFilter) }, [cityFilter])
 
   const openModal = () => {
     setForm(emptyForm)
@@ -66,6 +85,7 @@ const Entries = () => {
     if (!form.dateEntry) errs.dateEntry = 'La date est requise'
     if (!form.quantity) errs.quantity = 'La quantité est requise'
     else if (isNaN(Number(form.quantity)) || Number(form.quantity) < 1) errs.quantity = 'Quantité invalide (min. 1)'
+    if (isAdmin && !form.city) errs.city = 'La ville est requise'
     return errs
   }
 
@@ -89,9 +109,10 @@ const Entries = () => {
         dateEntry: form.dateEntry,
         quantity: Number(form.quantity),
         comment: form.comment.trim() || null,
+        ...(isAdmin && form.city ? { city: form.city } : {}),
       })
       closeModal()
-      fetchAll()
+      fetchAll(cityFilter)
     } catch (err) {
       setFormError(err.response?.data?.error || 'Une erreur est survenue.')
     } finally {
@@ -103,6 +124,8 @@ const Entries = () => {
     if (!d) return '—'
     return new Date(d).toLocaleDateString('fr-FR')
   }
+
+  const cityLabel = (c) => CITIES.find(x => x.value === c)?.label || c
 
   const filtered = entries.filter(e =>
     e.productName?.toLowerCase().includes(search.toLowerCase()) ||
@@ -123,16 +146,46 @@ const Entries = () => {
         </button>
       </div>
 
-      {/* Search */}
-      <div className="relative">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-        <input
-          type="text"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Rechercher par produit ou commentaire..."
-          className="input-field pl-9"
-        />
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3">
+        <div className="relative flex-1 min-w-48">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Rechercher par produit ou commentaire..."
+            className="input-field pl-9"
+          />
+        </div>
+        {isAdmin ? (
+          <div className="flex gap-1">
+            <button
+              onClick={() => setCityFilter('')}
+              className={`px-3 py-2 text-xs font-medium rounded-lg transition-all ${
+                cityFilter === '' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              Toutes les villes
+            </button>
+            {CITIES.map(c => (
+              <button
+                key={c.value}
+                onClick={() => setCityFilter(c.value)}
+                className={`px-3 py-2 text-xs font-medium rounded-lg transition-all ${
+                  cityFilter === c.value ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium ${CITY_COLORS[userCity] || 'bg-gray-100 text-gray-600'}`}>
+            <Building2 size={13} />
+            {CITIES.find(c => c.value === userCity)?.label || userCity}
+          </div>
+        )}
       </div>
 
       {/* Table */}
@@ -155,8 +208,10 @@ const Entries = () => {
                 <tr>
                   <th className="table-header">#</th>
                   <th className="table-header">Produit</th>
+                  <th className="table-header">Ville</th>
                   <th className="table-header">Quantité</th>
                   <th className="table-header">Date</th>
+                  {isAdmin && <th className="table-header">Enregistré par</th>}
                   <th className="table-header">Commentaire</th>
                 </tr>
               </thead>
@@ -166,12 +221,25 @@ const Entries = () => {
                     <td className="table-cell text-gray-400 text-xs">{idx + 1}</td>
                     <td className="table-cell font-semibold text-gray-800">{entry.productName}</td>
                     <td className="table-cell">
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${CITY_COLORS[entry.city] || 'bg-gray-100 text-gray-600'}`}>
+                        <MapPin size={10} />
+                        {cityLabel(entry.city)}
+                      </span>
+                    </td>
+                    <td className="table-cell">
                       <span className="inline-flex items-center gap-1 text-green-600 font-bold">
                         <TrendingUp size={14} />
                         +{entry.quantity}
                       </span>
                     </td>
                     <td className="table-cell text-gray-500">{formatDate(entry.dateEntry)}</td>
+                    {isAdmin && (
+                      <td className="table-cell">
+                        <span className="px-2 py-0.5 bg-gray-100 rounded-full text-xs text-gray-600 font-medium">
+                          {entry.createdBy}
+                        </span>
+                      </td>
+                    )}
                     <td className="table-cell text-gray-500 max-w-xs truncate">
                       {entry.comment || <span className="italic text-gray-300">—</span>}
                     </td>
@@ -201,16 +269,43 @@ const Entries = () => {
                 </div>
               )}
 
+              {/* Ville — admin seulement (USER a sa ville assignée) */}
+              {isAdmin ? (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Ville <span className="text-red-500">*</span></label>
+                  <div className="flex gap-2">
+                    {CITIES.map(c => (
+                      <button
+                        key={c.value}
+                        type="button"
+                        onClick={() => { setForm(prev => ({ ...prev, city: c.value })); setFormErrors(prev => ({ ...prev, city: '' })) }}
+                        className={`flex-1 py-2 text-sm font-medium rounded-lg border transition-all ${
+                          form.city === c.value
+                            ? 'border-blue-500 bg-blue-50 text-blue-700'
+                            : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                        }`}
+                      >
+                        {c.label}
+                      </button>
+                    ))}
+                  </div>
+                  {formErrors.city && <p className="mt-1 text-xs text-red-500">{formErrors.city}</p>}
+                </div>
+              ) : (
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${CITY_COLORS[userCity] || 'bg-gray-100 text-gray-600'}`}>
+                  <MapPin size={14} />
+                  Ville : {CITIES.find(c => c.value === userCity)?.label || userCity}
+                </div>
+              )}
+
+              {/* Produit */}
               <div className="relative">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Produit *</label>
                 <input
                   type="text"
                   name="productName"
                   value={form.productName}
-                  onChange={e => {
-                    handleChange(e)
-                    setShowSuggestions(true)
-                  }}
+                  onChange={e => { handleChange(e); setShowSuggestions(true) }}
                   onFocus={() => setShowSuggestions(true)}
                   onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
                   className={`input-field ${formErrors.productName ? 'border-red-400' : ''}`}
@@ -230,7 +325,7 @@ const Entries = () => {
                         className="px-4 py-2 cursor-pointer hover:bg-blue-50 flex justify-between items-center text-sm"
                       >
                         <span className="font-medium text-gray-800">{p.name}</span>
-                        <span className="text-gray-400 text-xs">stock: {p.quantity}</span>
+                        <span className="text-gray-400 text-xs">stock total: {p.quantity}</span>
                       </li>
                     ))}
                   </ul>

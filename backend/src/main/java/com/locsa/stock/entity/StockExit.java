@@ -34,4 +34,9 @@ public class StockExit {
 
     @Column(nullable = false)
     private String createdBy;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, columnDefinition = "varchar(20) default 'TANGER'")
+    @Builder.Default
+    private City city = City.TANGER;
 }

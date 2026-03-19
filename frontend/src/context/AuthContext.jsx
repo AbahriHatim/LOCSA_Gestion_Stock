@@ -18,9 +18,9 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (credentials) => {
     const response = await loginApi(credentials)
-    const { token, username, role } = response.data
+    const { token, username, role, city } = response.data
     localStorage.setItem('token', token)
-    const userData = { username, role }
+    const userData = { username, role, city }
     localStorage.setItem('user', JSON.stringify(userData))
     setUser(userData)
     return userData
@@ -39,6 +39,7 @@ export const AuthProvider = ({ children }) => {
     loading,
     isAuthenticated: !!user,
     isAdmin: user?.role === 'ADMIN',
+    userCity: user?.city || null,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

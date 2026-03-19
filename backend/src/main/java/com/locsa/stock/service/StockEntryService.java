@@ -2,6 +2,7 @@ package com.locsa.stock.service;
 
 import com.locsa.stock.dto.StockEntryRequest;
 import com.locsa.stock.dto.StockEntryResponse;
+import com.locsa.stock.entity.City;
 import com.locsa.stock.entity.Product;
 import com.locsa.stock.entity.StockEntry;
 import com.locsa.stock.repository.ProductRepository;
@@ -20,15 +21,25 @@ public class StockEntryService {
     private final StockEntryRepository stockEntryRepository;
     private final ProductRepository productRepository;
 
-    public List<StockEntryResponse> getAllEntries(String username, boolean isAdmin) {
-        List<StockEntry> entries = isAdmin
-                ? stockEntryRepository.findAllByOrderByDateEntryDesc()
-                : stockEntryRepository.findByCreatedByOrderByDateEntryDesc(username);
+    public List<StockEntryResponse> getAllEntries(String username, boolean isAdmin, City city) {
+        List<StockEntry> entries;
+        if (city != null) {
+            entries = isAdmin
+                    ? stockEntryRepository.findByCityOrderByDateEntryDesc(city)
+                    : stockEntryRepository.findByCreatedByAndCityOrderByDateEntryDesc(username, city);
+        } else {
+            entries = isAdmin
+                    ? stockEntryRepository.findAllByOrderByDateEntryDesc()
+                    : stockEntryRepository.findByCreatedByOrderByDateEntryDesc(username);
+        }
         return entries.stream().map(this::toResponse).collect(Collectors.toList());
     }
 
     @Transactional
-    public StockEntryResponse createEntry(StockEntryRequest request, String username) {
+    public StockEntryResponse createEntry(StockEntryRequest request, String username, City forcedCity) {
+        City city = forcedCity != null ? forcedCity : request.getCity();
+        if (city == null) throw new RuntimeException("La ville est requise");
+
         String name = request.getProductName().trim();
         Product product = productRepository.findByNameIgnoreCase(name)
                 .orElseGet(() -> productRepository.save(
@@ -41,6 +52,7 @@ public class StockEntryService {
                 .quantity(request.getQuantity())
                 .comment(request.getComment())
                 .createdBy(username)
+                .city(city)
                 .build();
 
         stockEntryRepository.save(entry);
@@ -57,7 +69,8 @@ public class StockEntryService {
                 entry.getDateEntry(),
                 entry.getQuantity(),
                 entry.getComment(),
-                entry.getCreatedBy()
+                entry.getCreatedBy(),
+                entry.getCity()
         );
     }
 

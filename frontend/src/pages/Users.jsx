@@ -1,20 +1,54 @@
 import React, { useEffect, useState } from 'react'
-import { getUsers, createUser, deleteUser } from '../api/users'
-import { Plus, X, Loader2, Users as UsersIcon, Trash2, ShieldCheck, User } from 'lucide-react'
+import { getUsers, createUser, updateUser, changePassword, toggleActive, deleteUser } from '../api/users'
+import {
+  Plus, X, Loader2, Users as UsersIcon, Trash2, ShieldCheck, User,
+  MapPin, Pencil, KeyRound, PowerOff, Power, AlertTriangle
+} from 'lucide-react'
 
-const emptyForm = { username: '', password: '', role: 'USER' }
+const CITIES = [
+  { value: 'TANGER',     label: 'Tanger' },
+  { value: 'FES',        label: 'Fès' },
+  { value: 'CASABLANCA', label: 'Casablanca' },
+]
+
+const CITY_COLORS = {
+  TANGER:     'bg-blue-100 text-blue-700',
+  FES:        'bg-emerald-100 text-emerald-700',
+  CASABLANCA: 'bg-orange-100 text-orange-700',
+}
+
+const emptyCreateForm = { username: '', password: '', role: 'USER', city: '' }
 
 const Users = () => {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  const [showModal, setShowModal] = useState(false)
-  const [form, setForm] = useState(emptyForm)
-  const [formErrors, setFormErrors] = useState({})
-  const [formLoading, setFormLoading] = useState(false)
-  const [formError, setFormError] = useState('')
+  // Create modal
+  const [showCreate, setShowCreate] = useState(false)
+  const [createForm, setCreateForm] = useState(emptyCreateForm)
+  const [createErrors, setCreateErrors] = useState({})
+  const [createLoading, setCreateLoading] = useState(false)
+  const [createError, setCreateError] = useState('')
 
+  // Edit modal
+  const [editUser, setEditUser] = useState(null) // user object
+  const [editForm, setEditForm] = useState({ username: '', role: '', city: '' })
+  const [editErrors, setEditErrors] = useState({})
+  const [editLoading, setEditLoading] = useState(false)
+  const [editError, setEditError] = useState('')
+
+  // Password modal
+  const [pwdUser, setPwdUser] = useState(null)
+  const [newPassword, setNewPassword] = useState('')
+  const [pwdError, setPwdError] = useState('')
+  const [pwdLoading, setPwdLoading] = useState(false)
+
+  // Suspend confirm
+  const [suspendUser, setSuspendUser] = useState(null)
+  const [suspendLoading, setSuspendLoading] = useState(false)
+
+  // Delete confirm
   const [deleteId, setDeleteId] = useState(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
 
@@ -33,58 +67,132 @@ const Users = () => {
 
   useEffect(() => { fetchUsers() }, [])
 
-  const openModal = () => {
-    setForm(emptyForm)
-    setFormErrors({})
-    setFormError('')
-    setShowModal(true)
-  }
-
-  const closeModal = () => {
-    setShowModal(false)
-    setForm(emptyForm)
-    setFormErrors({})
-    setFormError('')
-  }
-
-  const validate = () => {
+  /* ── CREATE ── */
+  const validateCreate = () => {
     const errs = {}
-    if (!form.username.trim()) errs.username = "Le nom d'utilisateur est requis"
-    else if (form.username.trim().length < 3) errs.username = "Minimum 3 caractères"
-    if (!form.password) errs.password = 'Le mot de passe est requis'
-    else if (form.password.length < 4) errs.password = 'Minimum 4 caractères'
+    if (!createForm.username.trim()) errs.username = "Le nom d'utilisateur est requis"
+    else if (createForm.username.trim().length < 3) errs.username = "Minimum 3 caractères"
+    if (!createForm.password) errs.password = 'Le mot de passe est requis'
+    else if (createForm.password.length < 4) errs.password = 'Minimum 4 caractères'
+    if (createForm.role === 'USER' && !createForm.city) errs.city = 'La ville est requise'
     return errs
   }
 
-  const handleChange = (e) => {
+  const handleCreateChange = (e) => {
     const { name, value } = e.target
-    setForm(prev => ({ ...prev, [name]: value }))
-    if (formErrors[name]) setFormErrors(prev => ({ ...prev, [name]: '' }))
-    if (formError) setFormError('')
+    const update = { [name]: value }
+    if (name === 'role' && value === 'ADMIN') update.city = ''
+    setCreateForm(prev => ({ ...prev, ...update }))
+    if (createErrors[name]) setCreateErrors(prev => ({ ...prev, [name]: '' }))
+    if (createError) setCreateError('')
   }
 
-  const handleSubmit = async (e) => {
+  const handleCreateSubmit = async (e) => {
     e.preventDefault()
-    const errs = validate()
-    if (Object.keys(errs).length > 0) { setFormErrors(errs); return }
-
-    setFormLoading(true)
-    setFormError('')
+    const errs = validateCreate()
+    if (Object.keys(errs).length > 0) { setCreateErrors(errs); return }
+    setCreateLoading(true)
+    setCreateError('')
     try {
-      await createUser({ username: form.username.trim(), password: form.password, role: form.role })
-      closeModal()
+      await createUser({
+        username: createForm.username.trim(),
+        password: createForm.password,
+        role: createForm.role,
+        city: createForm.role === 'USER' ? createForm.city : null,
+      })
+      setShowCreate(false)
+      setCreateForm(emptyCreateForm)
       fetchUsers()
     } catch (err) {
-      setFormError(err.response?.data?.error || 'Une erreur est survenue.')
+      setCreateError(err.response?.data?.error || 'Une erreur est survenue.')
     } finally {
-      setFormLoading(false)
+      setCreateLoading(false)
     }
   }
 
-  const handleDelete = async (id) => {
+  /* ── EDIT ── */
+  const openEdit = (u) => {
+    setEditUser(u)
+    setEditForm({ username: u.username, role: u.role, city: u.city || '' })
+    setEditErrors({})
+    setEditError('')
+  }
+
+  const validateEdit = () => {
+    const errs = {}
+    if (!editForm.username.trim()) errs.username = "Le nom d'utilisateur est requis"
+    else if (editForm.username.trim().length < 3) errs.username = "Minimum 3 caractères"
+    if (editForm.role === 'USER' && !editForm.city) errs.city = 'La ville est requise pour un utilisateur'
+    return errs
+  }
+
+  const handleEditChange = (e) => {
+    const { name, value } = e.target
+    const update = { [name]: value }
+    if (name === 'role' && value === 'ADMIN') update.city = ''
+    setEditForm(prev => ({ ...prev, ...update }))
+    if (editErrors[name]) setEditErrors(prev => ({ ...prev, [name]: '' }))
+    if (editError) setEditError('')
+  }
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault()
+    const errs = validateEdit()
+    if (Object.keys(errs).length > 0) { setEditErrors(errs); return }
+    setEditLoading(true)
+    setEditError('')
+    try {
+      await updateUser(editUser.id, {
+        username: editForm.username.trim(),
+        role: editForm.role,
+        city: editForm.role === 'USER' ? editForm.city : null,
+      })
+      setEditUser(null)
+      fetchUsers()
+    } catch (err) {
+      setEditError(err.response?.data?.error || 'Une erreur est survenue.')
+    } finally {
+      setEditLoading(false)
+    }
+  }
+
+  /* ── PASSWORD ── */
+  const openPwd = (u) => { setPwdUser(u); setNewPassword(''); setPwdError('') }
+
+  const handlePwdSubmit = async (e) => {
+    e.preventDefault()
+    if (!newPassword || newPassword.length < 4) { setPwdError('Minimum 4 caractères'); return }
+    setPwdLoading(true)
+    setPwdError('')
+    try {
+      await changePassword(pwdUser.id, newPassword)
+      setPwdUser(null)
+    } catch (err) {
+      setPwdError(err.response?.data?.error || 'Une erreur est survenue.')
+    } finally {
+      setPwdLoading(false)
+    }
+  }
+
+  /* ── SUSPEND ── */
+  const handleToggleActive = async () => {
+    setSuspendLoading(true)
+    try {
+      await toggleActive(suspendUser.id)
+      setSuspendUser(null)
+      fetchUsers()
+    } catch (err) {
+      alert(err.response?.data?.error || 'Erreur.')
+    } finally {
+      setSuspendLoading(false)
+    }
+  }
+
+  /* ── DELETE ── */
+  const handleDelete = async () => {
     setDeleteLoading(true)
     try {
-      await deleteUser(id)
+      await deleteUser(deleteId)
       setDeleteId(null)
       fetchUsers()
     } catch (err) {
@@ -94,17 +202,22 @@ const Users = () => {
     }
   }
 
+  const activeCount   = users.filter(u => u.active).length
+  const suspendCount  = users.filter(u => !u.active).length
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Gestion des Utilisateurs</h1>
-          <p className="text-gray-500 text-sm mt-1">{users.length} compte(s) enregistré(s)</p>
+          <p className="text-gray-500 text-sm mt-1">
+            {users.length} compte(s) — <span className="text-green-600">{activeCount} actif(s)</span>
+            {suspendCount > 0 && <span className="text-orange-500"> · {suspendCount} suspendu(s)</span>}
+          </p>
         </div>
-        <button onClick={openModal} className="btn-primary flex items-center gap-2">
-          <Plus size={16} />
-          Nouvel Utilisateur
+        <button onClick={() => setShowCreate(true)} className="btn-primary flex items-center gap-2">
+          <Plus size={16} /> Nouvel Utilisateur
         </button>
       </div>
 
@@ -124,49 +237,103 @@ const Users = () => {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="border-b border-gray-100">
+              <thead className="border-b border-gray-100 bg-gray-50">
                 <tr>
                   <th className="table-header">#</th>
-                  <th className="table-header">Nom d'utilisateur</th>
+                  <th className="table-header">Utilisateur</th>
                   <th className="table-header">Rôle</th>
-                  <th className="table-header">Actions</th>
+                  <th className="table-header">Ville</th>
+                  <th className="table-header">Statut</th>
+                  <th className="table-header text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {users.map((u, idx) => (
-                  <tr key={u.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={u.id} className={`hover:bg-gray-50 transition-colors ${!u.active ? 'opacity-60' : ''}`}>
                     <td className="table-cell text-gray-400 text-xs">{idx + 1}</td>
                     <td className="table-cell">
                       <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                          <User size={14} className="text-blue-600" />
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${u.active ? 'bg-blue-100' : 'bg-gray-100'}`}>
+                          <User size={14} className={u.active ? 'text-blue-600' : 'text-gray-400'} />
                         </div>
-                        <span className="font-semibold text-gray-800">{u.username}</span>
+                        <span className={`font-semibold ${u.active ? 'text-gray-800' : 'text-gray-400'}`}>{u.username}</span>
                       </div>
                     </td>
                     <td className="table-cell">
                       {u.role === 'ADMIN' ? (
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
-                          <ShieldCheck size={11} />
-                          Administrateur
+                          <ShieldCheck size={11} /> Administrateur
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                          <User size={11} />
-                          Utilisateur
+                          <User size={11} /> Utilisateur
                         </span>
                       )}
                     </td>
                     <td className="table-cell">
-                      {u.role !== 'ADMIN' && (
-                        <button
-                          onClick={() => setDeleteId(u.id)}
-                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Supprimer"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                      {u.city ? (
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${CITY_COLORS[u.city] || 'bg-gray-100 text-gray-600'}`}>
+                          <MapPin size={10} />
+                          {CITIES.find(c => c.value === u.city)?.label || u.city}
+                        </span>
+                      ) : (
+                        <span className="text-gray-300 italic text-xs">—</span>
                       )}
+                    </td>
+                    <td className="table-cell">
+                      {u.active ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                          <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"></span> Actif
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-600">
+                          <span className="w-1.5 h-1.5 rounded-full bg-orange-400 inline-block"></span> Suspendu
+                        </span>
+                      )}
+                    </td>
+                    <td className="table-cell">
+                      <div className="flex items-center justify-center gap-1">
+                        {/* Edit */}
+                        <button
+                          onClick={() => openEdit(u)}
+                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Modifier"
+                        >
+                          <Pencil size={15} />
+                        </button>
+                        {/* Change password */}
+                        <button
+                          onClick={() => openPwd(u)}
+                          className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                          title="Changer le mot de passe"
+                        >
+                          <KeyRound size={15} />
+                        </button>
+                        {/* Suspend / Activate — not for ADMIN */}
+                        {u.role !== 'ADMIN' && (
+                          <button
+                            onClick={() => setSuspendUser(u)}
+                            className={`p-1.5 rounded-lg transition-colors ${
+                              u.active
+                                ? 'text-gray-400 hover:text-orange-500 hover:bg-orange-50'
+                                : 'text-orange-500 hover:text-green-600 hover:bg-green-50'
+                            }`}
+                            title={u.active ? 'Suspendre' : 'Réactiver'}
+                          >
+                            {u.active ? <PowerOff size={15} /> : <Power size={15} />}
+                          </button>
+                        )}
+                        {/* Delete — not for ADMIN */}
+                        {u.role !== 'ADMIN' && (
+                          <button
+                            onClick={() => setDeleteId(u.id)}
+                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Supprimer"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -176,71 +343,54 @@ const Users = () => {
         )}
       </div>
 
-      {/* Create Modal */}
-      {showModal && (
+      {/* ── CREATE MODAL ── */}
+      {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
               <h3 className="text-lg font-semibold text-gray-800">Nouvel Utilisateur</h3>
-              <button onClick={closeModal} className="text-gray-400 hover:text-gray-600 transition-colors">
-                <X size={20} />
-              </button>
+              <button onClick={() => setShowCreate(false)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
             </div>
-
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              {formError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
-                  {formError}
-                </div>
-              )}
-
+            <form onSubmit={handleCreateSubmit} className="p-6 space-y-4">
+              {createError && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">{createError}</div>}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nom d'utilisateur *</label>
-                <input
-                  type="text"
-                  name="username"
-                  value={form.username}
-                  onChange={handleChange}
-                  className={`input-field ${formErrors.username ? 'border-red-400' : ''}`}
-                  placeholder="ex: jean.dupont"
-                  autoComplete="off"
-                />
-                {formErrors.username && <p className="mt-1 text-xs text-red-500">{formErrors.username}</p>}
+                <input type="text" name="username" value={createForm.username} onChange={handleCreateChange}
+                  className={`input-field ${createErrors.username ? 'border-red-400' : ''}`} placeholder="ex: jean.dupont" autoComplete="off" />
+                {createErrors.username && <p className="mt-1 text-xs text-red-500">{createErrors.username}</p>}
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Mot de passe *</label>
-                <input
-                  type="password"
-                  name="password"
-                  value={form.password}
-                  onChange={handleChange}
-                  className={`input-field ${formErrors.password ? 'border-red-400' : ''}`}
-                  placeholder="Mot de passe"
-                />
-                {formErrors.password && <p className="mt-1 text-xs text-red-500">{formErrors.password}</p>}
+                <input type="password" name="password" value={createForm.password} onChange={handleCreateChange}
+                  className={`input-field ${createErrors.password ? 'border-red-400' : ''}`} placeholder="Mot de passe" />
+                {createErrors.password && <p className="mt-1 text-xs text-red-500">{createErrors.password}</p>}
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Rôle *</label>
-                <select
-                  name="role"
-                  value={form.role}
-                  onChange={handleChange}
-                  className="input-field"
-                >
+                <select name="role" value={createForm.role} onChange={handleCreateChange} className="input-field">
                   <option value="USER">Utilisateur</option>
                   <option value="ADMIN">Administrateur</option>
                 </select>
               </div>
-
+              {createForm.role === 'USER' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Ville <span className="text-red-500">*</span></label>
+                  <div className="flex gap-2">
+                    {CITIES.map(c => (
+                      <button key={c.value} type="button"
+                        onClick={() => { setCreateForm(prev => ({ ...prev, city: c.value })); setCreateErrors(prev => ({ ...prev, city: '' })) }}
+                        className={`flex-1 py-2 text-sm font-medium rounded-lg border transition-all ${
+                          createForm.city === c.value ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                        }`}>{c.label}</button>
+                    ))}
+                  </div>
+                  {createErrors.city && <p className="mt-1 text-xs text-red-500">{createErrors.city}</p>}
+                </div>
+              )}
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={closeModal} className="btn-secondary flex-1">
-                  Annuler
-                </button>
-                <button type="submit" disabled={formLoading} className="btn-primary flex-1 flex items-center justify-center gap-2">
-                  {formLoading ? <Loader2 size={16} className="animate-spin" /> : null}
-                  Créer le compte
+                <button type="button" onClick={() => setShowCreate(false)} className="btn-secondary flex-1">Annuler</button>
+                <button type="submit" disabled={createLoading} className="btn-primary flex-1 flex items-center justify-center gap-2">
+                  {createLoading && <Loader2 size={16} className="animate-spin" />} Créer le compte
                 </button>
               </div>
             </form>
@@ -248,16 +398,142 @@ const Users = () => {
         </div>
       )}
 
-      {/* Delete Confirm Modal */}
+      {/* ── EDIT MODAL ── */}
+      {editUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <Pencil size={18} className="text-blue-600" />
+                <h3 className="text-lg font-semibold text-gray-800">Modifier — {editUser.username}</h3>
+              </div>
+              <button onClick={() => setEditUser(null)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+            </div>
+            <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
+              {editError && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">{editError}</div>}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nom d'utilisateur *</label>
+                <input type="text" name="username" value={editForm.username} onChange={handleEditChange}
+                  className={`input-field ${editErrors.username ? 'border-red-400' : ''}`} />
+                {editErrors.username && <p className="mt-1 text-xs text-red-500">{editErrors.username}</p>}
+              </div>
+              {editUser.role !== 'ADMIN' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Rôle *</label>
+                    <select name="role" value={editForm.role} onChange={handleEditChange} className="input-field">
+                      <option value="USER">Utilisateur</option>
+                      <option value="ADMIN">Administrateur</option>
+                    </select>
+                  </div>
+                  {editForm.role === 'USER' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Ville <span className="text-red-500">*</span></label>
+                      <div className="flex gap-2">
+                        {CITIES.map(c => (
+                          <button key={c.value} type="button"
+                            onClick={() => { setEditForm(prev => ({ ...prev, city: c.value })); setEditErrors(prev => ({ ...prev, city: '' })) }}
+                            className={`flex-1 py-2 text-sm font-medium rounded-lg border transition-all ${
+                              editForm.city === c.value ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                            }`}>{c.label}</button>
+                        ))}
+                      </div>
+                      {editErrors.city && <p className="mt-1 text-xs text-red-500">{editErrors.city}</p>}
+                    </div>
+                  )}
+                </>
+              )}
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setEditUser(null)} className="btn-secondary flex-1">Annuler</button>
+                <button type="submit" disabled={editLoading} className="btn-primary flex-1 flex items-center justify-center gap-2">
+                  {editLoading && <Loader2 size={16} className="animate-spin" />} Enregistrer
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── PASSWORD MODAL ── */}
+      {pwdUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <KeyRound size={18} className="text-indigo-600" />
+                <h3 className="text-lg font-semibold text-gray-800">Nouveau mot de passe</h3>
+              </div>
+              <button onClick={() => setPwdUser(null)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+            </div>
+            <form onSubmit={handlePwdSubmit} className="p-6 space-y-4">
+              <p className="text-sm text-gray-500">Réinitialiser le mot de passe de <strong>{pwdUser.username}</strong>.</p>
+              {pwdError && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">{pwdError}</div>}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nouveau mot de passe *</label>
+                <input type="password" value={newPassword} onChange={e => { setNewPassword(e.target.value); setPwdError('') }}
+                  className={`input-field ${pwdError ? 'border-red-400' : ''}`} placeholder="Minimum 4 caractères" autoFocus />
+              </div>
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setPwdUser(null)} className="btn-secondary flex-1">Annuler</button>
+                <button type="submit" disabled={pwdLoading} className="btn-primary flex-1 flex items-center justify-center gap-2">
+                  {pwdLoading && <Loader2 size={16} className="animate-spin" />} Confirmer
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── SUSPEND MODAL ── */}
+      {suspendUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${suspendUser.active ? 'bg-orange-100' : 'bg-green-100'}`}>
+                <AlertTriangle size={20} className={suspendUser.active ? 'text-orange-500' : 'text-green-600'} />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-800">
+                {suspendUser.active ? 'Suspendre le compte' : 'Réactiver le compte'}
+              </h3>
+            </div>
+            <p className="text-gray-500 text-sm">
+              {suspendUser.active
+                ? <>Le compte <strong>{suspendUser.username}</strong> sera suspendu. L'utilisateur ne pourra plus se connecter.</>
+                : <>Le compte <strong>{suspendUser.username}</strong> sera réactivé. L'utilisateur pourra à nouveau se connecter.</>
+              }
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setSuspendUser(null)} className="btn-secondary flex-1">Annuler</button>
+              <button
+                onClick={handleToggleActive}
+                disabled={suspendLoading}
+                className={`flex-1 px-4 py-2 rounded-lg font-medium text-sm text-white transition-colors flex items-center justify-center gap-2 ${
+                  suspendUser.active ? 'bg-orange-500 hover:bg-orange-600' : 'bg-green-600 hover:bg-green-700'
+                }`}
+              >
+                {suspendLoading ? <Loader2 size={16} className="animate-spin" /> : suspendUser.active ? <PowerOff size={16} /> : <Power size={16} />}
+                {suspendUser.active ? 'Suspendre' : 'Réactiver'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── DELETE MODAL ── */}
       {deleteId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
-            <h3 className="text-lg font-semibold text-gray-800">Confirmer la suppression</h3>
-            <p className="text-gray-500 text-sm">Cette action est irréversible. L'utilisateur ne pourra plus se connecter.</p>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                <Trash2 size={20} className="text-red-500" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-800">Supprimer le compte</h3>
+            </div>
+            <p className="text-gray-500 text-sm">Cette action est irréversible. Toutes les données liées à cet utilisateur seront conservées mais le compte sera supprimé.</p>
             <div className="flex gap-3">
               <button onClick={() => setDeleteId(null)} className="btn-secondary flex-1">Annuler</button>
               <button
-                onClick={() => handleDelete(deleteId)}
+                onClick={handleDelete}
                 disabled={deleteLoading}
                 className="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium text-sm transition-colors flex items-center justify-center gap-2"
               >
