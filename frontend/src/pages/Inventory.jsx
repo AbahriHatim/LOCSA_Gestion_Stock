@@ -2,20 +2,22 @@ import React, { useEffect, useState } from 'react'
 import { getInventories, createInventory, adjustStock } from '../api/inventory'
 import { getProducts } from '../api/products'
 import { useAuth } from '../context/AuthContext'
+import Pagination from '../components/Pagination'
+import { exportToExcel } from '../utils/exportUtils'
 import {
   Plus, X, Loader2, ClipboardList,
-  CheckCircle, TrendingUp, TrendingDown, Package, MapPin, Building2
+  CheckCircle, TrendingUp, TrendingDown, Package, MapPin, Building2, FileDown
 } from 'lucide-react'
 
 const CITIES = [
   { value: 'TANGER',     label: 'Tanger' },
-  { value: 'FES',        label: 'Fès' },
+  { value: 'MEKNES',     label: 'Meknès' },
   { value: 'CASABLANCA', label: 'Casablanca' },
 ]
 
 const CITY_COLORS = {
   TANGER:     'bg-blue-100 text-blue-700',
-  FES:        'bg-emerald-100 text-emerald-700',
+  MEKNES:     'bg-emerald-100 text-emerald-700',
   CASABLANCA: 'bg-orange-100 text-orange-700',
 }
 
@@ -43,7 +45,7 @@ const emptyForm = { productId: '', realQuantity: '', comment: '', dateInventory:
 const Inventory = () => {
   const { isAdmin, userCity } = useAuth()
   const [cityFilter, setCityFilter] = useState('')
-  const [inventories, setInventories] = useState([])
+  const [inventoriesPage, setInventoriesPage] = useState({ content: [], totalElements: 0, totalPages: 0, currentPage: 0, pageSize: 20 })
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -59,12 +61,12 @@ const Inventory = () => {
   const [adjustMotif, setAdjustMotif] = useState('')
   const [adjustMotifError, setAdjustMotifError] = useState('')
 
-  const fetchAll = async (city) => {
+  const fetchAll = async (city, page = 0) => {
     setLoading(true)
     setError('')
     try {
-      const [invRes, prodRes] = await Promise.all([getInventories(city || undefined), getProducts()])
-      setInventories(invRes.data)
+      const [invRes, prodRes] = await Promise.all([getInventories(city || undefined, page, 20), getProducts()])
+      setInventoriesPage(invRes.data)
       setProducts(prodRes.data)
     } catch {
       setError('Impossible de charger les données.')
@@ -73,15 +75,13 @@ const Inventory = () => {
     }
   }
 
-  useEffect(() => { fetchAll(cityFilter) }, [cityFilter])
+  useEffect(() => { fetchAll(cityFilter, 0) }, [cityFilter])
 
   const selectedProduct = products.find(p => String(p.id) === String(form.productId)) || null
 
-  // For preview we compare against per-city stock (shown as "stock système")
-  // The real per-city stock is fetched after submission; for now use global as approximation
-  const previewDiff = selectedProduct && form.realQuantity !== ''
-    ? Number(form.realQuantity) - selectedProduct.quantity
-    : null
+  // No live diff preview — the backend computes per-city stock at submission time.
+  // Showing global product.quantity here would be misleading in a multi-city context.
+  const previewDiff = null
 
   const openModal = () => {
     setForm(emptyForm)
@@ -129,7 +129,7 @@ const Inventory = () => {
         city: isAdmin ? form.city : undefined,
       })
       closeModal()
-      fetchAll(cityFilter)
+      fetchAll(cityFilter, 0)
     } catch (err) {
       setFormError(err.response?.data?.error || 'Une erreur est survenue.')
     } finally {
@@ -152,7 +152,7 @@ const Inventory = () => {
     try {
       await adjustStock(adjustModal.id, adjustMotif.trim())
       setAdjustModal(null)
-      fetchAll(cityFilter)
+      fetchAll(cityFilter, inventoriesPage.currentPage)
     } catch (err) {
       setAdjustMotifError(err.response?.data?.error || 'Erreur lors de l\'ajustement.')
     } finally {
@@ -160,13 +160,26 @@ const Inventory = () => {
     }
   }
 
+  const handleExport = () => {
+    exportToExcel(inventoriesPage.content, 'inventaire-stock', [
+      { key: 'productName',    header: 'Produit',          width: 28 },
+      { key: 'city',           header: 'Ville',            width: 14 },
+      { key: 'realQuantity',   header: 'Qté réelle',       width: 12 },
+      { key: 'systemQuantity', header: 'Qté système',      width: 14 },
+      { key: 'difference',     header: 'Écart',            width: 10 },
+      { key: 'dateInventory',  header: 'Date',             width: 14 },
+      { key: 'createdBy',      header: 'Effectué par',     width: 18 },
+      { key: 'adjustmentComment', header: 'Commentaire',   width: 30 },
+    ], 'Rapport Inventaire de Stock — LOCSA SARL')
+  }
+
   const formatDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR') : '—'
 
-  const negCount  = inventories.filter(i => i.difference < 0).length
-  const posCount  = inventories.filter(i => i.difference > 0).length
-  const okCount   = inventories.filter(i => i.difference === 0).length
+  const negCount  = inventoriesPage.content.filter(i => i.difference < 0).length
+  const posCount  = inventoriesPage.content.filter(i => i.difference > 0).length
+  const okCount   = inventoriesPage.content.filter(i => i.difference === 0).length
 
-  const filtered = inventories.filter(i => {
+  const filtered = inventoriesPage.content.filter(i => {
     if (filterDiff === 'negative') return i.difference < 0
     if (filterDiff === 'positive') return i.difference > 0
     if (filterDiff === 'zero')     return i.difference === 0
@@ -179,12 +192,18 @@ const Inventory = () => {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Inventaire</h1>
-          <p className="text-gray-500 text-sm mt-1">{inventories.length} inventaire(s) enregistré(s)</p>
+          <p className="text-gray-500 text-sm mt-1">{inventoriesPage.totalElements} inventaire(s) enregistré(s)</p>
         </div>
-        <button onClick={openModal} className="btn-primary flex items-center gap-2">
-          <Plus size={16} />
-          Nouvel Inventaire
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={handleExport} className="btn-secondary flex items-center gap-2">
+            <FileDown size={16} />
+            Exporter Excel
+          </button>
+          <button onClick={openModal} className="btn-primary flex items-center gap-2">
+            <Plus size={16} />
+            Nouvel Inventaire
+          </button>
+        </div>
       </div>
 
       {/* City filters — admin only, badge for user */}
@@ -370,6 +389,13 @@ const Inventory = () => {
             </table>
           </div>
         )}
+        <Pagination
+          currentPage={inventoriesPage.currentPage}
+          totalPages={inventoriesPage.totalPages}
+          totalElements={inventoriesPage.totalElements}
+          pageSize={inventoriesPage.pageSize}
+          onPageChange={(p) => fetchAll(cityFilter, p)}
+        />
       </div>
 
       {/* Adjust Motif Modal */}
@@ -494,13 +520,12 @@ const Inventory = () => {
                 )}
               </div>
 
-              {/* System quantity — admin only (non-admin must not see total stock) */}
+              {/* System quantity note — per-city stock calculated by backend at save time */}
               {selectedProduct && isAdmin && (
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex justify-between items-center">
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                   <span className="text-sm text-blue-700 font-medium">
-                    Stock système ({CITIES.find(c => c.value === form.city)?.label || '—'})
+                    Le stock système par ville sera calculé automatiquement à l'enregistrement.
                   </span>
-                  <span className="text-xl font-bold text-blue-800">{selectedProduct.quantity}</span>
                 </div>
               )}
 

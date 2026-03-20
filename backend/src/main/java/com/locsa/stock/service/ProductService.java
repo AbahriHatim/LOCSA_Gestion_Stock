@@ -1,12 +1,22 @@
 package com.locsa.stock.service;
 
+import com.locsa.stock.dto.PageResponse;
+import com.locsa.stock.dto.ProductHistoryItem;
 import com.locsa.stock.dto.ProductRequest;
 import com.locsa.stock.dto.ProductResponse;
+import com.locsa.stock.entity.City;
 import com.locsa.stock.entity.Product;
+import com.locsa.stock.repository.InventoryRepository;
 import com.locsa.stock.repository.ProductRepository;
+import com.locsa.stock.repository.StockEntryRepository;
+import com.locsa.stock.repository.StockExitRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -15,12 +25,22 @@ import java.util.stream.Collectors;
 public class ProductService {
 
     private final ProductRepository productRepository;
+    private final AuditService auditService;
+    private final StockEntryRepository stockEntryRepository;
+    private final StockExitRepository stockExitRepository;
+    private final InventoryRepository inventoryRepository;
 
     public List<ProductResponse> getAllProducts() {
         return productRepository.findAll()
                 .stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
+    }
+
+    public PageResponse<ProductResponse> getAllProducts(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("name").ascending());
+        org.springframework.data.domain.Page<Product> productPage = productRepository.findAll(pageable);
+        return PageResponse.of(productPage, productPage.getContent().stream().map(this::toResponse).collect(Collectors.toList()));
     }
 
     public ProductResponse getProductById(Long id) {
@@ -34,8 +54,12 @@ public class ProductService {
                 .name(request.getName())
                 .description(request.getDescription())
                 .quantity(request.getQuantity())
+                .category(request.getCategory() != null ? request.getCategory() : com.locsa.stock.entity.Category.C)
+                .minQuantity(request.getMinQuantity() != null ? request.getMinQuantity() : 0L)
                 .build();
-        return toResponse(productRepository.save(product));
+        product = productRepository.save(product);
+        auditService.log("PRODUCT", product.getId(), "CREATE", "system", "Produit créé: " + product.getName(), null);
+        return toResponse(product);
     }
 
     public ProductResponse updateProduct(Long id, ProductRequest request) {
@@ -44,14 +68,64 @@ public class ProductService {
         product.setName(request.getName());
         product.setDescription(request.getDescription());
         product.setQuantity(request.getQuantity());
-        return toResponse(productRepository.save(product));
+        if (request.getCategory() != null) product.setCategory(request.getCategory());
+        if (request.getMinQuantity() != null) product.setMinQuantity(request.getMinQuantity());
+        product = productRepository.save(product);
+        auditService.log("PRODUCT", id, "UPDATE", "system", "Produit modifié: " + product.getName(), null);
+        return toResponse(product);
     }
 
     public void deleteProduct(Long id) {
-        if (!productRepository.existsById(id)) {
-            throw new RuntimeException("Product not found with id: " + id);
-        }
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Product not found with id: " + id));
+        String name = product.getName();
+        auditService.log("PRODUCT", id, "DELETE", "system", "Produit supprimé: " + name, null);
         productRepository.deleteById(id);
+    }
+
+    public List<ProductHistoryItem> getProductHistory(Long productId, City city) {
+        productRepository.findById(productId)
+                .orElseThrow(() -> new RuntimeException("Produit introuvable"));
+
+        List<ProductHistoryItem> history = new ArrayList<>();
+
+        // Entries
+        (city != null
+                ? stockEntryRepository.findByProductIdAndCityOrderByDateEntryDesc(productId, city)
+                : stockEntryRepository.findByProductIdOrderByDateEntryDesc(productId)
+        ).forEach(e -> history.add(new ProductHistoryItem(
+                "ENTRY", e.getReference(), e.getDateEntry(), e.getQuantity(),
+                e.getCity() != null ? e.getCity().name() : null,
+                e.getCreatedBy(),
+                e.getStation() != null ? "Station: " + e.getStation() : e.getComment(),
+                null
+        )));
+
+        // Exits
+        (city != null
+                ? stockExitRepository.findByProductIdAndCityOrderByDateExitDesc(productId, city)
+                : stockExitRepository.findByProductIdOrderByDateExitDesc(productId)
+        ).forEach(e -> history.add(new ProductHistoryItem(
+                "EXIT", e.getReference(), e.getDateExit(), e.getQuantity(),
+                e.getCity() != null ? e.getCity().name() : null,
+                e.getCreatedBy(),
+                e.getBeneficiary() != null ? "Bénéficiaire: " + e.getBeneficiary() : e.getComment(),
+                null
+        )));
+
+        // Inventory
+        inventoryRepository.findByProductIdOrderByDateInventoryDesc(productId)
+                .forEach(i -> history.add(new ProductHistoryItem(
+                        "INVENTORY", null, i.getDateInventory(), i.getRealQuantity(),
+                        i.getCity() != null ? i.getCity().name() : null,
+                        i.getCreatedBy(),
+                        "Inventaire — écart: " + (i.getDifference() >= 0 ? "+" : "") + i.getDifference()
+                                + (i.getAdjustmentComment() != null ? " (" + i.getAdjustmentComment() + ")" : ""),
+                        i.getDifference()
+                )));
+
+        history.sort((a, b) -> b.getDate().compareTo(a.getDate()));
+        return history;
     }
 
     public ProductResponse toResponse(Product product) {
@@ -59,7 +133,9 @@ public class ProductService {
                 product.getId(),
                 product.getName(),
                 product.getDescription(),
-                product.getQuantity()
+                product.getQuantity(),
+                product.getCategory(),
+                product.getMinQuantity()
         );
     }
 }

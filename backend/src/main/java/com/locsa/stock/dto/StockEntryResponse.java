@@ -17,4 +17,13 @@ public class StockEntryResponse {
     private String comment;
     private String createdBy;
     private City city;
+    private String productCategory;
+    // Cat B
+    private String station;
+    // Cat A
+    private String code;
+    private String serialNumber;
+    private String brand;
+    private String power;
+    private String reference;
 }

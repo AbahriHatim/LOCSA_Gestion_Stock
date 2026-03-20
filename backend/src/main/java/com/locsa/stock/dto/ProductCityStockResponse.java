@@ -8,7 +8,7 @@ import lombok.Data;
 public class ProductCityStockResponse {
     private String productName;
     private Long stockTanger;
-    private Long stockFes;
+    private Long stockMeknes;
     private Long stockCasablanca;
     private Long totalStock;
 }

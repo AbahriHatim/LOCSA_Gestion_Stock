@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { getDashboard, getDashboardStats, getStockByCity, getStockByProduct } from '../api/dashboard'
+import { getDashboard, getDashboardStats, getStockByCity, getStockByProduct, getTopProducts, getActivityFeed } from '../api/dashboard'
 import { useAuth } from '../context/AuthContext'
 import {
   Package, TrendingUp, TrendingDown, AlertTriangle,
@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Legend
+  ResponsiveContainer, Legend, BarChart, Bar
 } from 'recharts'
 
 const PERIODS = [
@@ -21,13 +21,13 @@ const PERIODS = [
 const CITIES = [
   { value: '',           label: 'Toutes les villes', color: 'text-gray-600',   bg: 'bg-gray-50',     border: 'border-gray-200' },
   { value: 'TANGER',     label: 'Tanger',            color: 'text-blue-700',   bg: 'bg-blue-50',     border: 'border-blue-200' },
-  { value: 'FES',        label: 'Fès',               color: 'text-emerald-700',bg: 'bg-emerald-50',  border: 'border-emerald-200' },
+  { value: 'MEKNES',     label: 'Meknès',            color: 'text-emerald-700',bg: 'bg-emerald-50',  border: 'border-emerald-200' },
   { value: 'CASABLANCA', label: 'Casablanca',        color: 'text-orange-700', bg: 'bg-orange-50',   border: 'border-orange-200' },
 ]
 
 const CITY_ICON_COLORS = {
   TANGER:     { icon: 'text-blue-600',    bg: 'bg-blue-50',    bar: '#3b82f6' },
-  FES:        { icon: 'text-emerald-600', bg: 'bg-emerald-50', bar: '#10b981' },
+  MEKNES:     { icon: 'text-emerald-600', bg: 'bg-emerald-50', bar: '#10b981' },
   CASABLANCA: { icon: 'text-orange-600',  bg: 'bg-orange-50',  bar: '#f97316' },
 }
 
@@ -50,6 +50,8 @@ const Dashboard = () => {
   const [stats, setStats] = useState(null)
   const [cityStocks, setCityStocks] = useState([])
   const [productStocks, setProductStocks] = useState([])
+  const [topProducts, setTopProducts] = useState([])
+  const [activityFeed, setActivityFeed] = useState([])
   const [period, setPeriod] = useState('month')
   const [cityFilter, setCityFilter] = useState('')
   const [productSearch, setProductSearch] = useState('')
@@ -61,14 +63,18 @@ const Dashboard = () => {
     setLoading(true)
     setError('')
     try {
-      const [dashRes, cityRes, productRes] = await Promise.all([
+      const [dashRes, cityRes, productRes, topRes, feedRes] = await Promise.all([
         getDashboard(),
         getStockByCity(),
         getStockByProduct(),
+        getTopProducts(cityFilter || undefined),
+        getActivityFeed(cityFilter || undefined),
       ])
       setData(dashRes.data)
       setCityStocks(cityRes.data)
       setProductStocks(productRes.data)
+      setTopProducts(topRes.data)
+      setActivityFeed(feedRes.data)
     } catch {
       setError('Impossible de charger le tableau de bord.')
     } finally {
@@ -224,7 +230,7 @@ const Dashboard = () => {
                         <span className="inline-flex items-center gap-1 text-blue-700"><MapPin size={11} />Tanger</span>
                       </th>
                       <th className="table-header">
-                        <span className="inline-flex items-center gap-1 text-emerald-700"><MapPin size={11} />Fès</span>
+                        <span className="inline-flex items-center gap-1 text-emerald-700"><MapPin size={11} />Meknès</span>
                       </th>
                       <th className="table-header">
                         <span className="inline-flex items-center gap-1 text-orange-700"><MapPin size={11} />Casablanca</span>
@@ -261,8 +267,8 @@ const Dashboard = () => {
                               : <span className="text-gray-300 text-xs">—</span>}
                           </td>
                           <td className="table-cell text-center">
-                            {p.stockFes > 0
-                              ? <span className="inline-block px-2.5 py-0.5 bg-emerald-50 text-emerald-700 rounded-full text-xs font-bold">{p.stockFes}</span>
+                            {p.stockMeknes > 0
+                              ? <span className="inline-block px-2.5 py-0.5 bg-emerald-50 text-emerald-700 rounded-full text-xs font-bold">{p.stockMeknes}</span>
                               : <span className="text-gray-300 text-xs">—</span>}
                           </td>
                           <td className="table-cell text-center">
@@ -277,7 +283,7 @@ const Dashboard = () => {
                       ) : (
                         <td className="table-cell text-center">
                           {(() => {
-                            const val = userCity === 'TANGER' ? p.stockTanger : userCity === 'FES' ? p.stockFes : p.stockCasablanca
+                            const val = userCity === 'TANGER' ? p.stockTanger : userCity === 'MEKNES' ? p.stockMeknes : p.stockCasablanca
                             const colors = CITY_ICON_COLORS[userCity]
                             return val > 0
                               ? <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold ${colors?.bg || 'bg-gray-50'} ${colors?.icon || 'text-gray-700'}`}>{val}</span>
@@ -408,100 +414,38 @@ const Dashboard = () => {
         )}
       </div>
 
-      {/* Recent Tables */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Entries */}
-        <div className="card">
-          <div className="flex items-center gap-2 mb-4">
-            <TrendingUp size={18} className="text-green-600" />
-            <h2 className="text-lg font-semibold text-gray-800">Dernières Entrées</h2>
-          </div>
-          {data?.recentEntries?.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center py-6">Aucune entrée récente</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-100">
-                    <th className="table-header">Produit</th>
-                    <th className="table-header">Ville</th>
-                    <th className="table-header">Quantité</th>
-                    <th className="table-header">Date</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {data?.recentEntries?.map(entry => {
-                    const colors = CITY_ICON_COLORS[entry.city]
-                    const cityMeta = CITIES.find(c => c.value === entry.city)
-                    return (
-                      <tr key={entry.id} className="hover:bg-gray-50">
-                        <td className="table-cell font-medium">{entry.productName}</td>
-                        <td className="table-cell">
-                          {entry.city && (
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${colors?.bg || 'bg-gray-50'} ${colors?.icon || 'text-gray-600'}`}>
-                              <MapPin size={9} />
-                              {cityMeta?.label || entry.city}
-                            </span>
-                          )}
-                        </td>
-                        <td className="table-cell">
-                          <span className="text-green-600 font-semibold">+{entry.quantity}</span>
-                        </td>
-                        <td className="table-cell text-gray-500">{formatDate(entry.dateEntry)}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+      {/* Top 5 Produits */}
+      <div className="card">
+        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">Top 5 Produits</h2>
+        <ResponsiveContainer width="100%" height={200}>
+          <BarChart data={topProducts}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+            <XAxis dataKey="productName" tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} />
+            <Tooltip />
+            <Bar dataKey="totalEntries" name="Entrées" fill="#10b981" radius={[3,3,0,0]} />
+            <Bar dataKey="totalExits" name="Sorties" fill="#ef4444" radius={[3,3,0,0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
 
-        {/* Recent Exits */}
-        <div className="card">
-          <div className="flex items-center gap-2 mb-4">
-            <TrendingDown size={18} className="text-red-500" />
-            <h2 className="text-lg font-semibold text-gray-800">Dernières Sorties</h2>
-          </div>
-          {data?.recentExits?.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center py-6">Aucune sortie récente</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-100">
-                    <th className="table-header">Produit</th>
-                    <th className="table-header">Ville</th>
-                    <th className="table-header">Quantité</th>
-                    <th className="table-header">Bénéficiaire</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {data?.recentExits?.map(exit => {
-                    const colors = CITY_ICON_COLORS[exit.city]
-                    const cityMeta = CITIES.find(c => c.value === exit.city)
-                    return (
-                      <tr key={exit.id} className="hover:bg-gray-50">
-                        <td className="table-cell font-medium">{exit.productName}</td>
-                        <td className="table-cell">
-                          {exit.city && (
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${colors?.bg || 'bg-gray-50'} ${colors?.icon || 'text-gray-600'}`}>
-                              <MapPin size={9} />
-                              {cityMeta?.label || exit.city}
-                            </span>
-                          )}
-                        </td>
-                        <td className="table-cell">
-                          <span className="text-red-500 font-semibold">-{exit.quantity}</span>
-                        </td>
-                        <td className="table-cell text-gray-500">{exit.beneficiary}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+      {/* Activité Récente */}
+      <div className="card">
+        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">Activité Récente</h2>
+        <div className="space-y-2">
+          {activityFeed.slice(0, 10).map((item, i) => (
+            <div key={i} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${item.type === 'ENTRY' ? 'bg-emerald-500' : 'bg-red-500'}`} />
+              <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${item.type === 'ENTRY' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                {item.type === 'ENTRY' ? 'Entrée' : 'Sortie'}
+              </span>
+              <span className="flex-1 text-sm text-gray-700 dark:text-gray-300 font-medium">{item.productName}</span>
+              <span className="text-sm font-bold text-gray-800 dark:text-gray-100">{item.quantity}</span>
+              <span className="text-xs text-gray-400">{item.city}</span>
+              <span className="text-xs text-gray-400">{item.date}</span>
             </div>
-          )}
+          ))}
+          {activityFeed.length === 0 && <p className="text-center text-gray-400 py-4 text-sm">Aucune activité récente</p>}
         </div>
       </div>
     </div>

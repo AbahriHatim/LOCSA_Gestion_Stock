@@ -2,7 +2,6 @@ package com.locsa.stock.controller;
 
 import com.locsa.stock.dto.AdjustRequest;
 import com.locsa.stock.dto.InventoryRequest;
-import com.locsa.stock.dto.InventoryResponse;
 import com.locsa.stock.entity.City;
 import com.locsa.stock.entity.User;
 import com.locsa.stock.repository.UserRepository;
@@ -15,7 +14,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -27,9 +25,11 @@ public class InventoryController {
     private final UserRepository userRepository;
 
     @GetMapping
-    public ResponseEntity<List<InventoryResponse>> getAll(
+    public ResponseEntity<?> getAll(
             Authentication auth,
-            @RequestParam(required = false) String city) {
+            @RequestParam(required = false) String city,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
         boolean isAdmin = auth.getAuthorities().contains(new SimpleGrantedAuthority("ROLE_ADMIN"));
         City cityEnum;
         if (isAdmin) {
@@ -41,7 +41,7 @@ public class InventoryController {
             User user = userRepository.findByUsername(auth.getName()).orElseThrow();
             cityEnum = user.getCity();
         }
-        return ResponseEntity.ok(inventoryService.getAllInventories(auth.getName(), isAdmin, cityEnum));
+        return ResponseEntity.ok(inventoryService.getAllInventories(auth.getName(), isAdmin, cityEnum, page, size));
     }
 
     @PostMapping

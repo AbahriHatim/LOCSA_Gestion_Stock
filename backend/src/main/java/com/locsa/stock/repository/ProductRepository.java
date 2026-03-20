@@ -10,8 +10,8 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
     Optional<Product> findByNameIgnoreCase(String name);
 
-    @Query("SELECT p FROM Product p WHERE p.quantity <= :threshold")
-    List<Product> findLowStockProducts(long threshold);
+    @Query("SELECT p FROM Product p WHERE p.minQuantity > 0 AND p.quantity <= p.minQuantity")
+    List<Product> findLowStockProducts();
 
     @Query("SELECT SUM(p.quantity) FROM Product p")
     Long getTotalStock();

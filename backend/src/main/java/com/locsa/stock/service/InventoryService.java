@@ -2,9 +2,13 @@ package com.locsa.stock.service;
 
 import com.locsa.stock.dto.InventoryRequest;
 import com.locsa.stock.dto.InventoryResponse;
+import com.locsa.stock.dto.PageResponse;
 import com.locsa.stock.entity.*;
 import com.locsa.stock.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +24,7 @@ public class InventoryService {
     private final ProductRepository productRepository;
     private final StockEntryRepository stockEntryRepository;
     private final StockExitRepository stockExitRepository;
+    private final AuditService auditService;
 
     @Transactional
     public InventoryResponse createInventory(InventoryRequest request, String username, City city) {
@@ -47,21 +52,24 @@ public class InventoryService {
                 .city(city)
                 .build();
 
-        return toResponse(inventoryRepository.save(inventory));
+        inventory = inventoryRepository.save(inventory);
+        auditService.log("INVENTORY", inventory.getId(), "CREATE", username, "Inventaire créé: " + product.getName() + " ville=" + city, city);
+        return toResponse(inventory);
     }
 
-    public List<InventoryResponse> getAllInventories(String username, boolean isAdmin, City city) {
-        List<Inventory> list;
+    public PageResponse<InventoryResponse> getAllInventories(String username, boolean isAdmin, City city, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<Inventory> result;
         if (isAdmin) {
-            list = city != null
-                    ? inventoryRepository.findByCityOrderByDateInventoryDesc(city)
-                    : inventoryRepository.findAllByOrderByDateInventoryDesc();
+            result = city != null
+                    ? inventoryRepository.findByCityOrderByDateInventoryDesc(city, pageable)
+                    : inventoryRepository.findAllByOrderByDateInventoryDesc(pageable);
         } else {
-            list = city != null
-                    ? inventoryRepository.findByCreatedByAndCityOrderByDateInventoryDesc(username, city)
-                    : inventoryRepository.findByCreatedByOrderByDateInventoryDesc(username);
+            result = city != null
+                    ? inventoryRepository.findByCreatedByAndCityOrderByDateInventoryDesc(username, city, pageable)
+                    : inventoryRepository.findByCreatedByOrderByDateInventoryDesc(username, pageable);
         }
-        return list.stream().map(this::toResponse).collect(Collectors.toList());
+        return PageResponse.of(result, result.getContent().stream().map(this::toResponse).collect(Collectors.toList()));
     }
 
     @Transactional
@@ -113,7 +121,9 @@ public class InventoryService {
         inventory.setSystemQuantity(realQty);
         inventory.setDifference(0L);
         inventory.setAdjustmentComment(adjustmentComment);
-        return toResponse(inventoryRepository.save(inventory));
+        inventory = inventoryRepository.save(inventory);
+        auditService.log("INVENTORY", id, "UPDATE", inventory.getCreatedBy(), "Ajustement stock: " + product.getName() + " ville=" + city, city);
+        return toResponse(inventory);
     }
 
     public InventoryResponse toResponse(Inventory inv) {

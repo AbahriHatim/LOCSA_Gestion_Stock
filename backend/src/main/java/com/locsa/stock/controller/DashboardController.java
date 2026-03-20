@@ -5,10 +5,14 @@ import com.locsa.stock.dto.DashboardResponse;
 import com.locsa.stock.dto.ProductCityStockResponse;
 import com.locsa.stock.dto.StatsResponse;
 import com.locsa.stock.entity.City;
+import com.locsa.stock.entity.User;
+import com.locsa.stock.repository.UserRepository;
 import com.locsa.stock.service.DashboardService;
 import com.locsa.stock.service.StatsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -20,6 +24,7 @@ public class DashboardController {
 
     private final DashboardService dashboardService;
     private final StatsService statsService;
+    private final UserRepository userRepository;
 
     @GetMapping
     public ResponseEntity<DashboardResponse> getDashboard() {
@@ -45,5 +50,31 @@ public class DashboardController {
     @GetMapping("/by-product")
     public ResponseEntity<List<ProductCityStockResponse>> getStockByProduct() {
         return ResponseEntity.ok(dashboardService.getStockByProduct());
+    }
+
+    @GetMapping("/top-products")
+    public ResponseEntity<?> getTopProducts(Authentication auth, @RequestParam(required = false) String city) {
+        boolean isAdmin = auth.getAuthorities().contains(new SimpleGrantedAuthority("ROLE_ADMIN"));
+        City cityEnum = null;
+        if (isAdmin && city != null && !city.isBlank()) {
+            try { cityEnum = City.valueOf(city.toUpperCase()); } catch (IllegalArgumentException ignored) {}
+        } else if (!isAdmin) {
+            User user = userRepository.findByUsername(auth.getName()).orElseThrow();
+            cityEnum = user.getCity();
+        }
+        return ResponseEntity.ok(dashboardService.getTopProducts(cityEnum));
+    }
+
+    @GetMapping("/activity-feed")
+    public ResponseEntity<?> getActivityFeed(Authentication auth, @RequestParam(required = false) String city) {
+        boolean isAdmin = auth.getAuthorities().contains(new SimpleGrantedAuthority("ROLE_ADMIN"));
+        City cityEnum = null;
+        if (isAdmin && city != null && !city.isBlank()) {
+            try { cityEnum = City.valueOf(city.toUpperCase()); } catch (IllegalArgumentException ignored) {}
+        } else if (!isAdmin) {
+            User user = userRepository.findByUsername(auth.getName()).orElseThrow();
+            cityEnum = user.getCity();
+        }
+        return ResponseEntity.ok(dashboardService.getActivityFeed(cityEnum));
     }
 }

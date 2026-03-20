@@ -22,4 +22,15 @@ public class StockEntryRequest {
     private String comment;
 
     private City city; // optional — backend overrides with user's city for non-admin
+
+    private com.locsa.stock.entity.Category category; // used when auto-creating product
+
+    // Cat B: source station
+    private String station;
+
+    // Cat A: electric generator details
+    private String code;
+    private String serialNumber;
+    private String brand;
+    private String power;
 }

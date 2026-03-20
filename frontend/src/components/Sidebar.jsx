@@ -7,7 +7,9 @@ import {
   PackageMinus,
   ClipboardList,
   Users,
+  MapPin,
   X,
+  History,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import logo from '../assets/logo.png'
@@ -60,6 +62,22 @@ const adminItems = [
     to: '/users',
     icon: Users,
     label: 'Utilisateurs',
+    color: 'text-white',
+    bg: 'bg-white/20',
+    activeBg: 'bg-white/30',
+  },
+  {
+    to: '/sites',
+    icon: MapPin,
+    label: 'Sites',
+    color: 'text-white',
+    bg: 'bg-white/20',
+    activeBg: 'bg-white/30',
+  },
+  {
+    to: '/audit',
+    icon: History,
+    label: 'Journal d\'Audit',
     color: 'text-white',
     bg: 'bg-white/20',
     activeBg: 'bg-white/30',
@@ -177,7 +195,7 @@ const SidebarContent = () => {
 
       {/* Footer */}
       <div className="px-4 py-4 border-t border-white/10">
-        <p className="text-[10px] text-slate-500 text-center tracking-wide">© {new Date().getFullYear()} LOCSA SARL — v1.0</p>
+        <p className="text-[10px] text-slate-500 dark:text-gray-600 text-center tracking-wide">© {new Date().getFullYear()} LOCSA SARL — v1.0</p>
       </div>
     </div>
   )

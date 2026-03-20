@@ -39,4 +39,19 @@ public class StockExit {
     @Column(nullable = false, columnDefinition = "varchar(20) default 'TANGER'")
     @Builder.Default
     private City city = City.TANGER;
+
+    // Cat B: destination site
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "site_id")
+    private Site site;
+
+    // Cat A: electric generator details
+    @Column(length = 100)
+    private String code;
+
+    @Column(length = 100)
+    private String serialNumber;
+
+    @Column(unique = true)
+    private String reference;
 }

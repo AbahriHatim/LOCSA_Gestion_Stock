@@ -1,6 +1,7 @@
 import React from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { ThemeProvider } from './context/ThemeContext'
 import ProtectedRoute from './components/ProtectedRoute'
 
 const RoleRedirect = () => {
@@ -20,9 +21,12 @@ import Entries from './pages/Entries'
 import Exits from './pages/Exits'
 import Users from './pages/Users'
 import Inventory from './pages/Inventory'
+import Sites from './pages/Sites'
+import AuditLog from './pages/AuditLog'
 
 function App() {
   return (
+    <ThemeProvider>
     <AuthProvider>
       <Router>
         <Routes>
@@ -38,15 +42,18 @@ function App() {
             <Route index element={<RoleRedirect />} />
             <Route path="dashboard" element={<AdminRoute><Dashboard /></AdminRoute>} />
             <Route path="products" element={<AdminRoute><Products /></AdminRoute>} />
+            <Route path="sites" element={<AdminRoute><Sites /></AdminRoute>} />
             <Route path="entries" element={<Entries />} />
             <Route path="exits" element={<Exits />} />
             <Route path="users" element={<Users />} />
             <Route path="inventory" element={<Inventory />} />
+            <Route path="audit" element={<AdminRoute><AuditLog /></AdminRoute>} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </Router>
     </AuthProvider>
+    </ThemeProvider>
   )
 }
 

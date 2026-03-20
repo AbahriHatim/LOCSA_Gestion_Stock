@@ -35,6 +35,30 @@
   }
 }
 
+/* Dark mode overrides */
+.dark .card {
+  @apply bg-gray-800 border-gray-700;
+}
+.dark .input-field {
+  @apply bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-400;
+}
+.dark .btn-secondary {
+  @apply bg-gray-700 text-gray-200 border-gray-600 hover:bg-gray-600;
+}
+.dark .table-header {
+  @apply text-gray-400 bg-gray-900;
+}
+.dark .table-cell {
+  @apply text-gray-300;
+}
+
+/* Print styles */
+@media print {
+  .no-print { display: none !important; }
+  body { background: white !important; }
+  .dark body { background: white !important; }
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;

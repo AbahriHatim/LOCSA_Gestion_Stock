@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { getUsers, createUser, updateUser, changePassword, toggleActive, deleteUser } from '../api/users'
+import ConfirmDialog from '../components/ConfirmDialog'
 import {
   Plus, X, Loader2, Users as UsersIcon, Trash2, ShieldCheck, User,
   MapPin, Pencil, KeyRound, PowerOff, Power, AlertTriangle
@@ -7,13 +8,13 @@ import {
 
 const CITIES = [
   { value: 'TANGER',     label: 'Tanger' },
-  { value: 'FES',        label: 'Fès' },
+  { value: 'MEKNES',     label: 'Meknès' },
   { value: 'CASABLANCA', label: 'Casablanca' },
 ]
 
 const CITY_COLORS = {
   TANGER:     'bg-blue-100 text-blue-700',
-  FES:        'bg-emerald-100 text-emerald-700',
+  MEKNES:     'bg-emerald-100 text-emerald-700',
   CASABLANCA: 'bg-orange-100 text-orange-700',
 }
 
@@ -50,6 +51,7 @@ const Users = () => {
 
   // Delete confirm
   const [deleteId, setDeleteId] = useState(null)
+  const [confirmDelete, setConfirmDelete] = useState(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
 
   const fetchUsers = async () => {
@@ -519,31 +521,15 @@ const Users = () => {
         </div>
       )}
 
-      {/* ── DELETE MODAL ── */}
-      {deleteId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
-                <Trash2 size={20} className="text-red-500" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-800">Supprimer le compte</h3>
-            </div>
-            <p className="text-gray-500 text-sm">Cette action est irréversible. Toutes les données liées à cet utilisateur seront conservées mais le compte sera supprimé.</p>
-            <div className="flex gap-3">
-              <button onClick={() => setDeleteId(null)} className="btn-secondary flex-1">Annuler</button>
-              <button
-                onClick={handleDelete}
-                disabled={deleteLoading}
-                className="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium text-sm transition-colors flex items-center justify-center gap-2"
-              >
-                {deleteLoading ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
-                Supprimer
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        isOpen={!!deleteId}
+        title="Supprimer le compte"
+        message="Cette action est irréversible. Toutes les données liées à cet utilisateur seront conservées mais le compte sera supprimé."
+        confirmLabel="Supprimer"
+        variant="danger"
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteId(null)}
+      />
     </div>
   )
 }

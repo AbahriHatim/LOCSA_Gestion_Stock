@@ -89,6 +89,10 @@ public class AuthService {
         if (request.getCity() != null) {
             user.setCity(request.getCity());
         }
+        // Ensure USER always has a city
+        if (user.getRole() == Role.USER && user.getCity() == null) {
+            throw new RuntimeException("La ville est requise pour un utilisateur");
+        }
 
         userRepository.save(user);
         return new UserResponse(user.getId(), user.getUsername(), user.getRole().name(),

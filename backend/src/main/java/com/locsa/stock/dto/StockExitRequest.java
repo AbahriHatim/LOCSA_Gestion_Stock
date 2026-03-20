@@ -2,7 +2,6 @@ package com.locsa.stock.dto;
 
 import com.locsa.stock.entity.City;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import java.time.LocalDate;
@@ -20,10 +19,16 @@ public class StockExitRequest {
     @Min(value = 1, message = "Quantity must be at least 1")
     private Long quantity;
 
-    @NotBlank(message = "Beneficiary is required")
     private String beneficiary;
 
     private String comment;
 
     private City city; // optional — backend overrides with user's city for non-admin
+
+    // Cat B: destination site
+    private Long siteId;
+
+    // Cat A: electric generator details
+    private String code;
+    private String serialNumber;
 }

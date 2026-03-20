@@ -36,4 +36,24 @@ public class StockEntry {
     @Column(nullable = false, columnDefinition = "varchar(20) default 'TANGER'")
     @Builder.Default
     private City city = City.TANGER;
+
+    // Cat B: source station
+    @Column(length = 200)
+    private String station;
+
+    // Cat A: electric generator details
+    @Column(length = 100)
+    private String code;
+
+    @Column(length = 100)
+    private String serialNumber;
+
+    @Column(length = 100)
+    private String brand;
+
+    @Column(length = 100)
+    private String power;
+
+    @Column(unique = true)
+    private String reference;
 }

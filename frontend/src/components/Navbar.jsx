@@ -1,10 +1,12 @@
 import React, { useState } from 'react'
-import { Menu, LogOut, ChevronDown, Shield, User2 } from 'lucide-react'
+import { Menu, LogOut, ChevronDown, Shield, User2, Moon, Sun } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { useTheme } from '../context/ThemeContext'
 import { useNavigate } from 'react-router-dom'
 
 const Navbar = ({ onMenuClick }) => {
   const { user, logout } = useAuth()
+  const { darkMode, toggleDarkMode } = useTheme()
   const navigate = useNavigate()
   const [dropdownOpen, setDropdownOpen] = useState(false)
 
@@ -31,7 +33,12 @@ const Navbar = ({ onMenuClick }) => {
         </div>
       </div>
 
-      {/* Right - User menu */}
+      {/* Right - Dark mode toggle + User menu */}
+      <div className="flex items-center gap-2">
+        <button onClick={toggleDarkMode} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-400 transition-colors">
+          <Moon size={18} className={darkMode ? 'hidden' : ''} />
+          <Sun size={18} className={darkMode ? '' : 'hidden'} />
+        </button>
       <div className="relative">
         <button
           onClick={() => setDropdownOpen(!dropdownOpen)}
@@ -92,6 +99,7 @@ const Navbar = ({ onMenuClick }) => {
             </div>
           </>
         )}
+      </div>
       </div>
     </header>
   )

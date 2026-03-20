@@ -1,5 +1,6 @@
 package com.locsa.stock.dto;
 
+import com.locsa.stock.entity.Category;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -12,4 +13,6 @@ public class ProductResponse {
     private String name;
     private String description;
     private Long quantity;
+    private Category category;
+    private Long minQuantity;
 }

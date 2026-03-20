@@ -23,4 +23,13 @@ public class Product {
 
     @Column(nullable = false)
     private Long quantity;
+
+    @Column(columnDefinition = "bigint default 0")
+    @Builder.Default
+    private Long minQuantity = 0L;
+
+    @Enumerated(EnumType.STRING)
+    @Column(columnDefinition = "varchar(5) default 'C'")
+    @Builder.Default
+    private Category category = Category.C;
 }

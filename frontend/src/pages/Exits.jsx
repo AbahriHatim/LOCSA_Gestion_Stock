@@ -1,50 +1,82 @@
 import React, { useEffect, useState } from 'react'
 import { getExits, createExit } from '../api/exits'
 import { getProducts } from '../api/products'
+import { getSites } from '../api/sites'
 import { useAuth } from '../context/AuthContext'
-import { Plus, X, Loader2, TrendingDown, Search, Package, MapPin, Building2 } from 'lucide-react'
+import { Plus, X, Loader2, TrendingDown, Search, Package, MapPin, Building2, Download, Printer } from 'lucide-react'
+import { exportToExcel } from '../utils/exportUtils'
+import Pagination from '../components/Pagination'
 
 const today = new Date().toISOString().split('T')[0]
 
 const CITIES = [
   { value: 'TANGER',     label: 'Tanger' },
-  { value: 'FES',        label: 'Fès' },
+  { value: 'MEKNES',     label: 'Meknès' },
   { value: 'CASABLANCA', label: 'Casablanca' },
 ]
 
 const CITY_COLORS = {
   TANGER:     'bg-blue-100 text-blue-700',
-  FES:        'bg-emerald-100 text-emerald-700',
+  MEKNES:     'bg-emerald-100 text-emerald-700',
   CASABLANCA: 'bg-orange-100 text-orange-700',
 }
 
-const emptyForm = { productId: '', dateExit: today, quantity: '', beneficiary: '', comment: '', city: '' }
+const CATEGORIES = [
+  { value: 'A', label: 'Catégorie A', sub: 'Moteurs électrogènes', border: 'border-purple-400 bg-purple-50 text-purple-700' },
+  { value: 'B', label: 'Catégorie B', sub: 'Gasoil (en L)',        border: 'border-amber-400 bg-amber-50 text-amber-700'   },
+  { value: 'C', label: 'Catégorie C', sub: 'Standard',             border: 'border-blue-400 bg-blue-50 text-blue-700'     },
+]
+
+const CAT_COLOR = {
+  A: 'bg-purple-100 text-purple-700',
+  B: 'bg-amber-100 text-amber-700',
+  C: 'bg-gray-100 text-gray-600',
+}
+
+const emptyForm = {
+  category:     '',
+  productId:    '',
+  dateExit:     today,
+  quantity:     '',
+  beneficiary:  '',
+  comment:      '',
+  city:         '',
+  siteId:       '',
+  code:         '',
+  serialNumber: '',
+}
 
 const Exits = () => {
   const { isAdmin, userCity } = useAuth()
-  const [exits, setExits] = useState([])
+  const [exitsPage, setExitsPage]       = useState({ content: [], totalElements: 0, totalPages: 0, currentPage: 0, pageSize: 20 })
   const [products, setProducts] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [search, setSearch] = useState('')
-  const [cityFilter, setCityFilter] = useState('')
+  const [sites, setSites]       = useState([])
+  const [loading, setLoading]   = useState(true)
+  const [error, setError]       = useState('')
+  const [search, setSearch]     = useState('')
+  const [cityFilter, setCityFilter]   = useState('')
+  const [catFilter, setCatFilter]     = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
-  const [showModal, setShowModal] = useState(false)
-  const [form, setForm] = useState(emptyForm)
-  const [formErrors, setFormErrors] = useState({})
+  const [showModal, setShowModal]     = useState(false)
+  const [form, setForm]               = useState(emptyForm)
+  const [formErrors, setFormErrors]   = useState({})
   const [formLoading, setFormLoading] = useState(false)
-  const [formError, setFormError] = useState('')
+  const [formError, setFormError]     = useState('')
 
-  const fetchAll = async (city) => {
+  const fetchAll = async (city, page = 0) => {
     setLoading(true)
     setError('')
     try {
-      const [exitsRes, productsRes] = await Promise.all([
-        getExits(city || undefined),
+      const [exitsRes, productsRes, sitesRes] = await Promise.all([
+        getExits(city || undefined, dateFrom || undefined, dateTo || undefined, page, 20),
         getProducts(),
+        getSites(),
       ])
-      setExits(exitsRes.data)
+      setExitsPage(exitsRes.data)
       setProducts(productsRes.data)
+      setSites(sitesRes.data)
     } catch {
       setError('Impossible de charger les données.')
     } finally {
@@ -52,21 +84,44 @@ const Exits = () => {
     }
   }
 
-  useEffect(() => { fetchAll(cityFilter) }, [cityFilter])
+  useEffect(() => { fetchAll(cityFilter, 0) }, [cityFilter, dateFrom, dateTo])
+
+  // Products filtered by selected category
+  const availableProducts = products.filter(p =>
+    !form.category || (p.category || 'C') === form.category
+  )
 
   const selectedProduct = products.find(p => String(p.id) === String(form.productId)) || null
+  const isCatA = form.category === 'A'
+  const isCatB = form.category === 'B'
 
-  const openModal = () => { setForm(emptyForm); setFormErrors({}); setFormError(''); setShowModal(true) }
+  const activeSites = sites.filter(s => s.active && (!form.city || s.city === form.city))
+
+  const openModal  = () => { setForm(emptyForm); setFormErrors({}); setFormError(''); setShowModal(true) }
   const closeModal = () => { setShowModal(false); setForm(emptyForm); setFormErrors({}); setFormError('') }
+
+  const selectCategory = (cat) => {
+    setForm({ ...emptyForm, category: cat })
+    setFormErrors({})
+    setFormError('')
+  }
 
   const validateForm = () => {
     const errs = {}
+    if (!form.category) errs.category = 'Sélectionnez une catégorie'
     if (isAdmin && !form.city) errs.city = 'La ville est requise'
     if (!form.productId) errs.productId = 'Veuillez sélectionner un produit'
-    if (!form.dateExit) errs.dateExit = 'La date est requise'
-    if (!form.quantity) errs.quantity = 'La quantité est requise'
+    if (!form.dateExit)  errs.dateExit  = 'La date est requise'
+    if (!form.quantity)  errs.quantity  = 'La quantité est requise'
     else if (isNaN(Number(form.quantity)) || Number(form.quantity) < 1) errs.quantity = 'Quantité invalide (min. 1)'
-    if (!form.beneficiary.trim()) errs.beneficiary = 'Le bénéficiaire est requis'
+
+    if (isCatA) {
+      if (!form.beneficiary.trim())  errs.beneficiary  = 'Le bénéficiaire est requis'
+    } else if (isCatB) {
+      if (!form.siteId) errs.siteId = 'Le site de destination est requis'
+    } else {
+      if (!form.beneficiary.trim()) errs.beneficiary = 'Le bénéficiaire est requis'
+    }
     return errs
   }
 
@@ -84,16 +139,25 @@ const Exits = () => {
     setFormLoading(true)
     setFormError('')
     try {
-      await createExit({
+      const payload = {
         productId: Number(form.productId),
-        dateExit: form.dateExit,
-        quantity: Number(form.quantity),
-        beneficiary: form.beneficiary.trim(),
-        comment: form.comment.trim() || null,
+        dateExit:  form.dateExit,
+        quantity:  Number(form.quantity),
+        comment:   form.comment.trim() || null,
         ...(isAdmin && form.city ? { city: form.city } : {}),
-      })
+      }
+      if (isCatA) {
+        payload.beneficiary  = form.beneficiary.trim()
+        payload.code         = form.code.trim()
+        payload.serialNumber = form.serialNumber.trim()
+      } else if (isCatB) {
+        payload.siteId = Number(form.siteId)
+      } else {
+        payload.beneficiary = form.beneficiary.trim()
+      }
+      await createExit(payload)
       closeModal()
-      fetchAll(cityFilter)
+      fetchAll(cityFilter, 0)
     } catch (err) {
       setFormError(err.response?.data?.error || 'Une erreur est survenue.')
     } finally {
@@ -101,14 +165,37 @@ const Exits = () => {
     }
   }
 
-  const formatDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR') : '—'
-  const cityLabel = (c) => CITIES.find(x => x.value === c)?.label || c
+  const handleExportCSV = () => {
+    const rows = exitsPage.content
+    exportToExcel(rows, 'sorties-stock', [
+      { key: 'reference',       header: 'Réf',           width: 18 },
+      { key: 'productName',     header: 'Produit',        width: 28 },
+      { key: 'productCategory', header: 'Catégorie',      width: 12 },
+      { key: 'city',            header: 'Ville',          width: 14 },
+      { key: 'quantity',        header: 'Quantité',       width: 12 },
+      { key: 'dateExit',        header: 'Date',           width: 14 },
+      { key: 'beneficiary',     header: 'Bénéficiaire',   width: 22 },
+      { key: 'createdBy',       header: 'Effectué par',   width: 18 },
+      { key: 'code',            header: 'Code',           width: 14 },
+      { key: 'serialNumber',    header: 'N° Série',       width: 16 },
+      { key: 'siteName',        header: 'Site',           width: 20 },
+      { key: 'comment',         header: 'Commentaire',    width: 30 },
+    ], 'Rapport Sorties de Stock — LOCSA SARL')
+  }
 
-  const filtered = exits.filter(e =>
-    e.productName?.toLowerCase().includes(search.toLowerCase()) ||
-    e.beneficiary?.toLowerCase().includes(search.toLowerCase()) ||
-    (e.comment || '').toLowerCase().includes(search.toLowerCase())
-  )
+  const formatDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR') : '—'
+  const cityLabel  = (c) => CITIES.find(x => x.value === c)?.label || c
+
+  const filtered = exitsPage.content.filter(e => {
+    const matchSearch =
+      e.productName?.toLowerCase().includes(search.toLowerCase()) ||
+      (e.beneficiary || '').toLowerCase().includes(search.toLowerCase()) ||
+      (e.comment || '').toLowerCase().includes(search.toLowerCase()) ||
+      (e.code || '').toLowerCase().includes(search.toLowerCase()) ||
+      (e.serialNumber || '').toLowerCase().includes(search.toLowerCase())
+    const matchCat = !catFilter || e.productCategory === catFilter
+    return matchSearch && matchCat
+  })
 
   return (
     <div className="space-y-6">
@@ -116,47 +203,54 @@ const Exits = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Sorties de Stock</h1>
-          <p className="text-gray-500 text-sm mt-1">
-            {isAdmin ? `${exits.length} sortie(s) enregistrée(s)` : `${exits.length} sortie(s) — vos enregistrements`}
-          </p>
+          <p className="text-gray-500 text-sm mt-1">{exitsPage.totalElements} sortie(s) enregistrée(s)</p>
         </div>
-        <button onClick={openModal} className="btn-primary flex items-center gap-2">
-          <Plus size={16} /> Nouvelle Sortie
-        </button>
+        <div className="flex items-center gap-2 no-print">
+          <button onClick={handleExportCSV} className="btn-secondary flex items-center gap-2 no-print">
+            <Download size={16} /> Exporter
+          </button>
+          <button onClick={() => window.print()} className="btn-secondary flex items-center gap-2 no-print">
+            <Printer size={16} /> Imprimer
+          </button>
+          <button onClick={openModal} className="btn-primary flex items-center gap-2">
+            <Plus size={16} /> Nouvelle Sortie
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-48">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Rechercher par produit, bénéficiaire..."
-            className="input-field pl-9"
-          />
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Rechercher par produit, bénéficiaire, code..."
+            className="input-field pl-9" />
         </div>
+
+        {/* Date filters */}
+        <div className="flex items-center gap-2">
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="input-field text-sm" placeholder="Du" />
+          <span className="text-gray-400 text-sm">→</span>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="input-field text-sm" placeholder="Au" />
+          {(dateFrom || dateTo) && (
+            <button onClick={() => { setDateFrom(''); setDateTo('') }} className="text-xs text-gray-400 hover:text-gray-600 underline">Effacer</button>
+          )}
+        </div>
+
+        <div className="flex gap-1">
+          {['', 'A', 'B', 'C'].map(c => (
+            <button key={c} onClick={() => setCatFilter(c)}
+              className={`px-3 py-2 text-xs font-medium rounded-lg transition-all ${catFilter === c ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+              {c === '' ? 'Toutes' : `Cat. ${c}`}
+            </button>
+          ))}
+        </div>
+
         {isAdmin ? (
           <div className="flex gap-1">
-            <button
-              onClick={() => setCityFilter('')}
-              className={`px-3 py-2 text-xs font-medium rounded-lg transition-all ${
-                cityFilter === '' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              Toutes les villes
-            </button>
+            <button onClick={() => setCityFilter('')} className={`px-3 py-2 text-xs font-medium rounded-lg transition-all ${cityFilter === '' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>Toutes</button>
             {CITIES.map(c => (
-              <button
-                key={c.value}
-                onClick={() => setCityFilter(c.value)}
-                className={`px-3 py-2 text-xs font-medium rounded-lg transition-all ${
-                  cityFilter === c.value ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                {c.label}
-              </button>
+              <button key={c.value} onClick={() => setCityFilter(c.value)} className={`px-3 py-2 text-xs font-medium rounded-lg transition-all ${cityFilter === c.value ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{c.label}</button>
             ))}
           </div>
         ) : (
@@ -185,19 +279,22 @@ const Exits = () => {
             <table className="w-full">
               <thead className="border-b border-gray-100 bg-gray-50">
                 <tr>
+                  <th className="table-header">Réf</th>
                   <th className="table-header">#</th>
                   <th className="table-header">Produit</th>
+                  <th className="table-header">Cat.</th>
                   <th className="table-header">Ville</th>
-                  <th className="table-header">Quantité</th>
-                  <th className="table-header">Bénéficiaire</th>
+                  <th className="table-header">Qté</th>
+                  <th className="table-header">Détails</th>
                   <th className="table-header">Date</th>
-                  {isAdmin && <th className="table-header">Enregistré par</th>}
+                  {isAdmin && <th className="table-header">Par</th>}
                   <th className="table-header">Commentaire</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {filtered.map((exit, idx) => (
                   <tr key={exit.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="table-cell text-gray-400 text-xs font-mono">{exit.reference || '—'}</td>
                     <td className="table-cell text-gray-400 text-xs">{idx + 1}</td>
                     <td className="table-cell">
                       <div className="flex items-center gap-2">
@@ -208,27 +305,42 @@ const Exits = () => {
                       </div>
                     </td>
                     <td className="table-cell">
+                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold ${CAT_COLOR[exit.productCategory] || CAT_COLOR.C}`}>
+                        {exit.productCategory || 'C'}
+                      </span>
+                    </td>
+                    <td className="table-cell">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${CITY_COLORS[exit.city] || 'bg-gray-100 text-gray-600'}`}>
-                        <MapPin size={10} />
-                        {cityLabel(exit.city)}
+                        <MapPin size={10} /> {cityLabel(exit.city)}
                       </span>
                     </td>
                     <td className="table-cell">
                       <span className="inline-flex items-center gap-1 font-bold text-red-500">
-                        <TrendingDown size={14} /> -{exit.quantity}
+                        <TrendingDown size={14} />
+                        -{exit.quantity}{exit.productCategory === 'B' ? ' L' : ''}
                       </span>
                     </td>
-                    <td className="table-cell">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                        {exit.beneficiary}
-                      </span>
+                    <td className="table-cell text-xs text-gray-500 max-w-xs">
+                      {exit.productCategory === 'A' && (
+                        <div className="space-y-0.5">
+                          {exit.code         && <div><span className="text-gray-400">Code:</span> {exit.code}</div>}
+                          {exit.serialNumber && <div><span className="text-gray-400">N° Série:</span> {exit.serialNumber}</div>}
+                          {exit.beneficiary  && <div><span className="text-gray-400">Bénéf.:</span> {exit.beneficiary}</div>}
+                        </div>
+                      )}
+                      {exit.productCategory === 'B' && (
+                        <span className="text-amber-600">{exit.siteName ? `Site: ${exit.siteName}` : exit.beneficiary}</span>
+                      )}
+                      {(!exit.productCategory || exit.productCategory === 'C') && (
+                        <span className={exit.beneficiary ? 'text-blue-600' : 'italic text-gray-300'}>
+                          {exit.beneficiary || '—'}
+                        </span>
+                      )}
                     </td>
                     <td className="table-cell text-gray-500 text-sm">{formatDate(exit.dateExit)}</td>
                     {isAdmin && (
                       <td className="table-cell">
-                        <span className="px-2 py-0.5 bg-gray-100 rounded-full text-xs text-gray-600 font-medium">
-                          {exit.createdBy}
-                        </span>
+                        <span className="px-2 py-0.5 bg-gray-100 rounded-full text-xs text-gray-600 font-medium">{exit.createdBy}</span>
                       </td>
                     )}
                     <td className="table-cell text-gray-500 max-w-xs truncate text-sm">
@@ -240,155 +352,211 @@ const Exits = () => {
             </table>
           </div>
         )}
+        <Pagination
+          currentPage={exitsPage.currentPage}
+          totalPages={exitsPage.totalPages}
+          totalElements={exitsPage.totalElements}
+          pageSize={exitsPage.pageSize}
+          onPageChange={(p) => fetchAll(cityFilter, p)}
+        />
       </div>
 
       {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-screen overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
               <div className="flex items-center gap-2">
                 <TrendingDown size={18} className="text-red-500" />
                 <h3 className="text-lg font-semibold text-gray-800">Nouvelle Sortie de Stock</h3>
               </div>
-              <button onClick={closeModal} className="text-gray-400 hover:text-gray-600 transition-colors">
-                <X size={20} />
-              </button>
+              <button onClick={closeModal} className="text-gray-400 hover:text-gray-600 transition-colors"><X size={20} /></button>
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               {formError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
-                  {formError}
-                </div>
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">{formError}</div>
               )}
 
-              {/* Ville — admin seulement (USER a sa ville assignée) */}
-              {isAdmin ? (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Ville <span className="text-red-500">*</span></label>
-                  <div className="flex gap-2">
-                    {CITIES.map(c => (
-                      <button
-                        key={c.value}
-                        type="button"
-                        onClick={() => { setForm(prev => ({ ...prev, city: c.value, productId: '' })); setFormErrors(prev => ({ ...prev, city: '' })) }}
-                        className={`flex-1 py-2 text-sm font-medium rounded-lg border transition-all ${
-                          form.city === c.value
-                            ? 'border-blue-500 bg-blue-50 text-blue-700'
-                            : 'border-gray-200 text-gray-600 hover:border-gray-300'
-                        }`}
-                      >
-                        {c.label}
-                      </button>
-                    ))}
-                  </div>
-                  {formErrors.city && <p className="mt-1 text-xs text-red-500">{formErrors.city}</p>}
-                </div>
-              ) : (
-                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${CITY_COLORS[userCity] || 'bg-gray-100 text-gray-600'}`}>
-                  <MapPin size={14} />
-                  Ville : {CITIES.find(c => c.value === userCity)?.label || userCity}
-                </div>
-              )}
-
-              {/* Product select */}
+              {/* Step 1: Category */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Produit <span className="text-red-500">*</span>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Catégorie <span className="text-red-500">*</span>
                 </label>
-                <select
-                  name="productId"
-                  value={form.productId}
-                  onChange={handleChange}
-                  className={`input-field ${formErrors.productId ? 'border-red-400' : ''}`}
-                >
-                  <option value="">— Sélectionner un produit —</option>
-                  {products.filter(p => p.quantity > 0).map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} — stock total : {p.quantity}
-                    </option>
+                <div className="grid grid-cols-3 gap-2">
+                  {CATEGORIES.map(c => (
+                    <button
+                      key={c.value}
+                      type="button"
+                      onClick={() => selectCategory(c.value)}
+                      className={`py-3 rounded-xl border-2 text-center transition-all ${
+                        form.category === c.value
+                          ? c.border + ' border-2'
+                          : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="text-base font-bold">{c.value}</div>
+                      <div className="text-xs mt-0.5 leading-tight">{c.sub}</div>
+                    </button>
                   ))}
-                </select>
-                {formErrors.productId && <p className="mt-1 text-xs text-red-500">{formErrors.productId}</p>}
+                </div>
+                {formErrors.category && <p className="mt-1 text-xs text-red-500">{formErrors.category}</p>}
               </div>
 
-              {/* Stock disponible */}
-              {selectedProduct && (
-                <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg flex justify-between items-center">
-                  <span className="text-sm text-orange-700 font-medium">Stock total disponible</span>
-                  <span className="text-xl font-bold text-orange-800">{selectedProduct.quantity}</span>
-                </div>
+              {form.category && (
+                <>
+                  {/* City */}
+                  {isAdmin ? (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Ville <span className="text-red-500">*</span></label>
+                      <div className="flex gap-2">
+                        {CITIES.map(c => (
+                          <button key={c.value} type="button"
+                            onClick={() => { setForm(prev => ({ ...prev, city: c.value, productId: '', siteId: '' })); setFormErrors(prev => ({ ...prev, city: '' })) }}
+                            className={`flex-1 py-2 text-sm font-medium rounded-lg border transition-all ${form.city === c.value ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}
+                          >{c.label}</button>
+                        ))}
+                      </div>
+                      {formErrors.city && <p className="mt-1 text-xs text-red-500">{formErrors.city}</p>}
+                    </div>
+                  ) : (
+                    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${CITY_COLORS[userCity] || 'bg-gray-100 text-gray-600'}`}>
+                      <MapPin size={14} />
+                      Ville : {CITIES.find(c => c.value === userCity)?.label || userCity}
+                    </div>
+                  )}
+
+                  {/* Product */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Produit <span className="text-red-500">*</span></label>
+                    {availableProducts.length === 0 ? (
+                      <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-700 text-sm">
+                        Aucun produit Cat. {form.category} en stock. Vérifiez les produits et catégories.
+                      </div>
+                    ) : (
+                      <select name="productId" value={form.productId} onChange={handleChange}
+                        className={`input-field ${formErrors.productId ? 'border-red-400' : ''}`}>
+                        <option value="">— Sélectionner un produit —</option>
+                        {availableProducts.map(p => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} — stock: {p.quantity}{isCatB ? ' L' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    {formErrors.productId && <p className="mt-1 text-xs text-red-500">{formErrors.productId}</p>}
+                  </div>
+
+                  {/* Stock badge */}
+                  {selectedProduct && (
+                    <div className={`p-3 rounded-lg flex justify-between items-center border ${
+                      isCatA ? 'bg-purple-50 border-purple-200' :
+                      isCatB ? 'bg-amber-50 border-amber-200' :
+                               'bg-orange-50 border-orange-200'
+                    }`}>
+                      <span className="text-sm font-medium text-gray-700">Stock disponible</span>
+                      <span className="text-xl font-bold text-gray-800">
+                        {selectedProduct.quantity}{isCatB ? ' L' : ''}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Date */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Date de sortie <span className="text-red-500">*</span></label>
+                    <input type="date" name="dateExit" value={form.dateExit} onChange={handleChange}
+                      className={`input-field ${formErrors.dateExit ? 'border-red-400' : ''}`} />
+                    {formErrors.dateExit && <p className="mt-1 text-xs text-red-500">{formErrors.dateExit}</p>}
+                  </div>
+
+                  {/* Quantity */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Quantité {isCatB ? '(Litres)' : ''} <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <input type="number" name="quantity" value={form.quantity} onChange={handleChange}
+                        className={`input-field ${isCatB ? 'pr-10' : ''} ${formErrors.quantity ? 'border-red-400' : ''}`}
+                        placeholder="0" min="1" />
+                      {isCatB && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-amber-600">L</span>}
+                    </div>
+                    {formErrors.quantity && <p className="mt-1 text-xs text-red-500">{formErrors.quantity}</p>}
+                  </div>
+
+                  {/* Cat A: code + serial + beneficiary */}
+                  {isCatA && (
+                    <div className="space-y-3 p-3 bg-purple-50 border border-purple-200 rounded-xl">
+                      <p className="text-xs font-semibold text-purple-700 uppercase tracking-wide">Détails moteur électrogène <span className="font-normal normal-case text-purple-400">(optionnel)</span></p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Code</label>
+                          <input type="text" name="code" value={form.code} onChange={handleChange}
+                            className="input-field text-sm" placeholder="Code" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">N° Série</label>
+                          <input type="text" name="serialNumber" value={form.serialNumber} onChange={handleChange}
+                            className="input-field text-sm" placeholder="N° série" />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Bénéficiaire <span className="text-red-500">*</span></label>
+                        <input type="text" name="beneficiary" value={form.beneficiary} onChange={handleChange}
+                          className={`input-field text-sm ${formErrors.beneficiary ? 'border-red-400' : ''}`} placeholder="Bénéficiaire" />
+                        {formErrors.beneficiary && <p className="mt-1 text-xs text-red-500">{formErrors.beneficiary}</p>}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Cat B: site */}
+                  {isCatB && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Site de destination <span className="text-red-500">*</span></label>
+                      <select name="siteId" value={form.siteId} onChange={handleChange}
+                        className={`input-field ${formErrors.siteId ? 'border-red-400' : ''}`}>
+                        <option value="">— Sélectionner un site —</option>
+                        {activeSites.map(s => (
+                          <option key={s.id} value={s.id}>
+                            {s.name} ({CITIES.find(c => c.value === s.city)?.label || s.city})
+                          </option>
+                        ))}
+                      </select>
+                      {formErrors.siteId && <p className="mt-1 text-xs text-red-500">{formErrors.siteId}</p>}
+                    </div>
+                  )}
+
+                  {/* Cat C: beneficiary */}
+                  {!isCatA && !isCatB && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Bénéficiaire <span className="text-red-500">*</span></label>
+                      <input type="text" name="beneficiary" value={form.beneficiary} onChange={handleChange}
+                        className={`input-field ${formErrors.beneficiary ? 'border-red-400' : ''}`} placeholder="Nom du bénéficiaire" />
+                      {formErrors.beneficiary && <p className="mt-1 text-xs text-red-500">{formErrors.beneficiary}</p>}
+                    </div>
+                  )}
+
+                  {/* Comment */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Commentaire</label>
+                    <textarea name="comment" value={form.comment} onChange={handleChange}
+                      className="input-field resize-none" placeholder="Commentaire (optionnel)" rows={2} />
+                  </div>
+
+                  <div className="flex gap-3 pt-1">
+                    <button type="button" onClick={closeModal} className="btn-secondary flex-1">Annuler</button>
+                    <button type="submit" disabled={formLoading} className="btn-primary flex-1 flex items-center justify-center gap-2">
+                      {formLoading && <Loader2 size={16} className="animate-spin" />}
+                      Enregistrer
+                    </button>
+                  </div>
+                </>
               )}
 
-              {/* Date */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Date de sortie <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  name="dateExit"
-                  value={form.dateExit}
-                  onChange={handleChange}
-                  className={`input-field ${formErrors.dateExit ? 'border-red-400' : ''}`}
-                />
-                {formErrors.dateExit && <p className="mt-1 text-xs text-red-500">{formErrors.dateExit}</p>}
-              </div>
-
-              {/* Quantity */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Quantité <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  name="quantity"
-                  value={form.quantity}
-                  onChange={handleChange}
-                  className={`input-field ${formErrors.quantity ? 'border-red-400' : ''}`}
-                  placeholder="0"
-                  min="1"
-                />
-                {formErrors.quantity && <p className="mt-1 text-xs text-red-500">{formErrors.quantity}</p>}
-              </div>
-
-              {/* Beneficiary */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Bénéficiaire <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  name="beneficiary"
-                  value={form.beneficiary}
-                  onChange={handleChange}
-                  className={`input-field ${formErrors.beneficiary ? 'border-red-400' : ''}`}
-                  placeholder="Nom du bénéficiaire"
-                />
-                {formErrors.beneficiary && <p className="mt-1 text-xs text-red-500">{formErrors.beneficiary}</p>}
-              </div>
-
-              {/* Comment */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Commentaire</label>
-                <textarea
-                  name="comment"
-                  value={form.comment}
-                  onChange={handleChange}
-                  className="input-field resize-none"
-                  placeholder="Commentaire (optionnel)"
-                  rows={2}
-                />
-              </div>
-
-              <div className="flex gap-3 pt-1">
-                <button type="button" onClick={closeModal} className="btn-secondary flex-1">Annuler</button>
-                <button type="submit" disabled={formLoading} className="btn-primary flex-1 flex items-center justify-center gap-2">
-                  {formLoading && <Loader2 size={16} className="animate-spin" />}
-                  Enregistrer
-                </button>
-              </div>
+              {!form.category && (
+                <div className="flex gap-3 pt-2">
+                  <button type="button" onClick={closeModal} className="btn-secondary flex-1">Annuler</button>
+                </div>
+              )}
             </form>
           </div>
         </div>

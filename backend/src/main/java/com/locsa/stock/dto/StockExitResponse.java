@@ -18,4 +18,11 @@ public class StockExitResponse {
     private String comment;
     private String createdBy;
     private City city;
+    private String productCategory;
+    // Cat B
+    private String siteName;
+    // Cat A
+    private String code;
+    private String serialNumber;
+    private String reference;
 }
