@@ -64,10 +64,11 @@ const Entries = () => {
   const fetchAll = async (city, page = 0) => {
     setLoading(true)
     setError('')
+    const productCity = isAdmin ? (city || undefined) : userCity
     try {
       const [entriesRes, productsRes] = await Promise.all([
         getEntries(city || undefined, dateFrom || undefined, dateTo || undefined, page, 20),
-        getProducts(),
+        getProducts(productCity),
       ])
       setEntriesPage(entriesRes.data)
       setProducts(productsRes.data)
@@ -447,7 +448,9 @@ const Entries = () => {
                             className="px-4 py-2 cursor-pointer hover:bg-blue-50 flex justify-between items-center text-sm"
                           >
                             <span className="font-medium text-gray-800">{p.name}</span>
-                            <span className="text-gray-400 text-xs">stock: {p.quantity}</span>
+                            <span className="text-gray-400 text-xs">
+                              stock{!isAdmin ? ` ${CITIES.find(c => c.value === userCity)?.label || ''}` : ''}: {p.quantity}
+                            </span>
                           </li>
                         ))}
                       </ul>

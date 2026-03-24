@@ -37,6 +37,16 @@ public class ProductService {
                 .collect(Collectors.toList());
     }
 
+    public List<ProductResponse> getAllProductsForCity(City city) {
+        return productRepository.findAll().stream().map(p -> {
+            Long entries = stockEntryRepository.getTotalEntriesByProductAndCity(p.getId(), city);
+            Long exits   = stockExitRepository.getTotalExitsByProductAndCity(p.getId(), city);
+            Long cityStock = (entries != null ? entries : 0L) - (exits != null ? exits : 0L);
+            return new ProductResponse(p.getId(), p.getName(), p.getDescription(),
+                    cityStock, p.getCategory(), p.getMinQuantity());
+        }).collect(Collectors.toList());
+    }
+
     public PageResponse<ProductResponse> getAllProducts(int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("name").ascending());
         org.springframework.data.domain.Page<Product> productPage = productRepository.findAll(pageable);

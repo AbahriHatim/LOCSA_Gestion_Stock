@@ -2,11 +2,15 @@ package com.locsa.stock.controller;
 
 import com.locsa.stock.dto.ProductRequest;
 import com.locsa.stock.entity.City;
+import com.locsa.stock.entity.User;
+import com.locsa.stock.repository.UserRepository;
 import com.locsa.stock.service.ProductService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -17,11 +21,32 @@ import java.util.Map;
 public class ProductController {
 
     private final ProductService productService;
+    private final UserRepository userRepository;
 
     @GetMapping
     public ResponseEntity<?> getAllProducts(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "0") int size) {
+            @RequestParam(defaultValue = "0") int size,
+            @RequestParam(required = false) String city,
+            Authentication authentication) {
+
+        // Resolve effective city: non-admin is always forced to their own city
+        City effectiveCity = null;
+        if (authentication != null) {
+            boolean isAdmin = authentication.getAuthorities()
+                    .contains(new SimpleGrantedAuthority("ROLE_ADMIN"));
+            if (!isAdmin) {
+                User user = userRepository.findByUsername(authentication.getName())
+                        .orElse(null);
+                if (user != null) effectiveCity = user.getCity();
+            } else if (city != null && !city.isBlank()) {
+                try { effectiveCity = City.valueOf(city.toUpperCase()); } catch (IllegalArgumentException ignored) {}
+            }
+        }
+
+        if (effectiveCity != null) {
+            return ResponseEntity.ok(productService.getAllProductsForCity(effectiveCity));
+        }
         if (size > 0) {
             return ResponseEntity.ok(productService.getAllProducts(page, size));
         }

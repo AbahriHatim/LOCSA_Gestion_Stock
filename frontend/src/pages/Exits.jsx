@@ -70,10 +70,12 @@ const Exits = () => {
   const fetchAll = async (city, page = 0) => {
     setLoading(true)
     setError('')
+    // For non-admin, always pass their city to get city-specific stock
+    const productCity = isAdmin ? (city || undefined) : userCity
     try {
       const [exitsRes, productsRes, sitesRes] = await Promise.all([
         getExits(city || undefined, dateFrom || undefined, dateTo || undefined, page, 20),
-        getProducts(),
+        getProducts(productCity),
         getSites(),
       ])
       setExitsPage(exitsRes.data)
@@ -99,7 +101,10 @@ const Exits = () => {
   const isGasoilGE      = isCatB && form.gasoilType === 'GE'
   const isGasoilVehicule = isCatB && form.gasoilType === 'VEHICULE'
 
-  const activeSites = sites.filter(s => s.active && (!form.city || s.city === form.city))
+  // Non-admin: always filter sites by their assigned city
+  // Admin: filter by the city selected in the form
+  const effectiveCity = isAdmin ? form.city : userCity
+  const activeSites = sites.filter(s => s.active && (!effectiveCity || s.city === effectiveCity))
 
   const openModal  = () => { setForm(emptyForm); setFormErrors({}); setFormError(''); setShowModal(true) }
   const closeModal = () => { setShowModal(false); setForm(emptyForm); setFormErrors({}); setFormError('') }
@@ -485,8 +490,15 @@ const Exits = () => {
                       isCatB ? 'bg-amber-50 border-amber-200' :
                                'bg-orange-50 border-orange-200'
                     }`}>
-                      <span className="text-sm font-medium text-gray-700">Stock disponible</span>
-                      <span className="text-xl font-bold text-gray-800">
+                      <span className="text-sm font-medium text-gray-700">
+                        Stock disponible
+                        {!isAdmin && (
+                          <span className={`ml-1 text-xs font-normal ${CITY_COLORS[userCity] || ''}`}>
+                            ({CITIES.find(c => c.value === userCity)?.label || userCity})
+                          </span>
+                        )}
+                      </span>
+                      <span className={`text-xl font-bold ${selectedProduct.quantity <= 0 ? 'text-red-600' : 'text-gray-800'}`}>
                         {selectedProduct.quantity}{isCatB ? ' L' : ''}
                       </span>
                     </div>
