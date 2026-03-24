@@ -89,9 +89,24 @@ public class StockExitService {
         boolean isCatB = product.getCategory() != null
                 && product.getCategory() == com.locsa.stock.entity.Category.B;
         if (isCatB) {
-            if (siteEntity == null) throw new RuntimeException("Le site de destination est requis pour les produits Catégorie B");
-            if (beneficiary == null || beneficiary.isBlank()) {
-                beneficiary = siteEntity.getName();
+            String gasoilType = request.getGasoilType();
+            if (gasoilType == null || gasoilType.isBlank()) {
+                throw new RuntimeException("Veuillez sélectionner le type de gasoil (GE ou Véhicule)");
+            }
+            if ("GE".equals(gasoilType)) {
+                if (siteEntity == null) throw new RuntimeException("Le site de destination est requis pour Gasoil GE");
+                if (beneficiary == null || beneficiary.isBlank()) {
+                    beneficiary = siteEntity.getName();
+                }
+            } else if ("VEHICULE".equals(gasoilType)) {
+                if (request.getImmatriculation() == null || request.getImmatriculation().isBlank()) {
+                    throw new RuntimeException("L'immatriculation du véhicule est requise");
+                }
+                if (beneficiary == null || beneficiary.isBlank()) {
+                    beneficiary = request.getImmatriculation();
+                }
+            } else {
+                throw new RuntimeException("Type de gasoil invalide. Valeurs acceptées : GE, VEHICULE");
             }
         } else {
             if (beneficiary == null || beneficiary.isBlank()) {
@@ -122,6 +137,8 @@ public class StockExitService {
                 .site(siteEntity)
                 .code(request.getCode())
                 .serialNumber(request.getSerialNumber())
+                .gasoilType(request.getGasoilType())
+                .immatriculation(request.getImmatriculation())
                 .reference(referenceService.generateReference("SOR"))
                 .build();
 
@@ -148,6 +165,8 @@ public class StockExitService {
                 exit.getCity(),
                 cat,
                 exit.getSite() != null ? exit.getSite().getName() : null,
+                exit.getGasoilType(),
+                exit.getImmatriculation(),
                 exit.getCode(),
                 exit.getSerialNumber(),
                 exit.getReference()

@@ -34,16 +34,18 @@ const CAT_COLOR = {
 }
 
 const emptyForm = {
-  category:     '',
-  productId:    '',
-  dateExit:     today,
-  quantity:     '',
-  beneficiary:  '',
-  comment:      '',
-  city:         '',
-  siteId:       '',
-  code:         '',
-  serialNumber: '',
+  category:       '',
+  productId:      '',
+  dateExit:       today,
+  quantity:       '',
+  beneficiary:    '',
+  comment:        '',
+  city:           '',
+  siteId:         '',
+  code:           '',
+  serialNumber:   '',
+  gasoilType:     '',   // 'GE' or 'VEHICULE' for Cat B
+  immatriculation: '',
 }
 
 const Exits = () => {
@@ -94,6 +96,8 @@ const Exits = () => {
   const selectedProduct = products.find(p => String(p.id) === String(form.productId)) || null
   const isCatA = form.category === 'A'
   const isCatB = form.category === 'B'
+  const isGasoilGE      = isCatB && form.gasoilType === 'GE'
+  const isGasoilVehicule = isCatB && form.gasoilType === 'VEHICULE'
 
   const activeSites = sites.filter(s => s.active && (!form.city || s.city === form.city))
 
@@ -116,9 +120,11 @@ const Exits = () => {
     else if (isNaN(Number(form.quantity)) || Number(form.quantity) < 1) errs.quantity = 'Quantité invalide (min. 1)'
 
     if (isCatA) {
-      if (!form.beneficiary.trim())  errs.beneficiary  = 'Le bénéficiaire est requis'
+      if (!form.beneficiary.trim()) errs.beneficiary = 'Le bénéficiaire est requis'
     } else if (isCatB) {
-      if (!form.siteId) errs.siteId = 'Le site de destination est requis'
+      if (!form.gasoilType) errs.gasoilType = 'Sélectionnez le type de gasoil'
+      else if (form.gasoilType === 'GE' && !form.siteId) errs.siteId = 'Le site de destination est requis'
+      else if (form.gasoilType === 'VEHICULE' && !form.immatriculation.trim()) errs.immatriculation = "L'immatriculation est requise"
     } else {
       if (!form.beneficiary.trim()) errs.beneficiary = 'Le bénéficiaire est requis'
     }
@@ -151,7 +157,12 @@ const Exits = () => {
         payload.code         = form.code.trim()
         payload.serialNumber = form.serialNumber.trim()
       } else if (isCatB) {
-        payload.siteId = Number(form.siteId)
+        payload.gasoilType = form.gasoilType
+        if (form.gasoilType === 'GE') {
+          payload.siteId = Number(form.siteId)
+        } else {
+          payload.immatriculation = form.immatriculation.trim()
+        }
       } else {
         payload.beneficiary = form.beneficiary.trim()
       }
@@ -178,6 +189,8 @@ const Exits = () => {
       { key: 'createdBy',       header: 'Effectué par',   width: 18 },
       { key: 'code',            header: 'Code',           width: 14 },
       { key: 'serialNumber',    header: 'N° Série',       width: 16 },
+      { key: 'gasoilType',      header: 'Type Gasoil',    width: 14 },
+      { key: 'immatriculation', header: 'Immatriculation',width: 16 },
       { key: 'siteName',        header: 'Site',           width: 20 },
       { key: 'comment',         header: 'Commentaire',    width: 30 },
     ], 'Rapport Sorties de Stock — LOCSA SARL')
@@ -329,7 +342,25 @@ const Exits = () => {
                         </div>
                       )}
                       {exit.productCategory === 'B' && (
-                        <span className="text-amber-600">{exit.siteName ? `Site: ${exit.siteName}` : exit.beneficiary}</span>
+                        <div className="space-y-0.5">
+                          {exit.gasoilType && (
+                            <div>
+                              <span className={`inline-flex px-1.5 py-0.5 rounded text-xs font-bold ${exit.gasoilType === 'GE' ? 'bg-yellow-100 text-yellow-700' : 'bg-sky-100 text-sky-700'}`}>
+                                {exit.gasoilType === 'GE' ? '⚡ GE' : '🚗 Véhicule'}
+                              </span>
+                            </div>
+                          )}
+                          {exit.gasoilType === 'GE' && exit.siteName && (
+                            <div className="text-amber-600">Site: {exit.siteName}</div>
+                          )}
+                          {exit.gasoilType === 'VEHICULE' && exit.immatriculation && (
+                            <div className="text-sky-600 font-mono">{exit.immatriculation}</div>
+                          )}
+                          {!exit.gasoilType && (exit.siteName
+                            ? <span className="text-amber-600">Site: {exit.siteName}</span>
+                            : <span className="text-gray-500">{exit.beneficiary}</span>
+                          )}
+                        </div>
                       )}
                       {(!exit.productCategory || exit.productCategory === 'C') && (
                         <span className={exit.beneficiary ? 'text-blue-600' : 'italic text-gray-300'}>
@@ -508,20 +539,62 @@ const Exits = () => {
                     </div>
                   )}
 
-                  {/* Cat B: site */}
+                  {/* Cat B: gasoil type selector + conditional fields */}
                   {isCatB && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Site de destination <span className="text-red-500">*</span></label>
-                      <select name="siteId" value={form.siteId} onChange={handleChange}
-                        className={`input-field ${formErrors.siteId ? 'border-red-400' : ''}`}>
-                        <option value="">— Sélectionner un site —</option>
-                        {activeSites.map(s => (
-                          <option key={s.id} value={s.id}>
-                            {s.name} ({CITIES.find(c => c.value === s.city)?.label || s.city})
-                          </option>
+                    <div className="space-y-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                      <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Type de gasoil <span className="text-red-500">*</span></p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { value: 'GE',       label: 'Groupe Électrogène', icon: '⚡' },
+                          { value: 'VEHICULE', label: 'Véhicule',           icon: '🚗' },
+                        ].map(t => (
+                          <button
+                            key={t.value}
+                            type="button"
+                            onClick={() => {
+                              setForm(prev => ({ ...prev, gasoilType: t.value, siteId: '', immatriculation: '' }))
+                              setFormErrors(prev => ({ ...prev, gasoilType: '', siteId: '', immatriculation: '' }))
+                            }}
+                            className={`py-3 rounded-xl border-2 text-center transition-all ${
+                              form.gasoilType === t.value
+                                ? 'border-amber-500 bg-amber-100 text-amber-800'
+                                : 'border-gray-200 text-gray-500 hover:border-amber-300 bg-white'
+                            }`}
+                          >
+                            <div className="text-lg">{t.icon}</div>
+                            <div className="text-xs font-semibold mt-0.5">{t.label}</div>
+                          </button>
                         ))}
-                      </select>
-                      {formErrors.siteId && <p className="mt-1 text-xs text-red-500">{formErrors.siteId}</p>}
+                      </div>
+                      {formErrors.gasoilType && <p className="text-xs text-red-500">{formErrors.gasoilType}</p>}
+
+                      {/* GE: site selector */}
+                      {isGasoilGE && (
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Site de destination <span className="text-red-500">*</span></label>
+                          <select name="siteId" value={form.siteId} onChange={handleChange}
+                            className={`input-field text-sm ${formErrors.siteId ? 'border-red-400' : ''}`}>
+                            <option value="">— Sélectionner un site —</option>
+                            {activeSites.map(s => (
+                              <option key={s.id} value={s.id}>
+                                {s.name} ({CITIES.find(c => c.value === s.city)?.label || s.city})
+                              </option>
+                            ))}
+                          </select>
+                          {formErrors.siteId && <p className="mt-1 text-xs text-red-500">{formErrors.siteId}</p>}
+                        </div>
+                      )}
+
+                      {/* Véhicule: immatriculation */}
+                      {isGasoilVehicule && (
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Immatriculation <span className="text-red-500">*</span></label>
+                          <input type="text" name="immatriculation" value={form.immatriculation} onChange={handleChange}
+                            className={`input-field text-sm uppercase ${formErrors.immatriculation ? 'border-red-400' : ''}`}
+                            placeholder="Ex: 12345-A-1" />
+                          {formErrors.immatriculation && <p className="mt-1 text-xs text-red-500">{formErrors.immatriculation}</p>}
+                        </div>
+                      )}
                     </div>
                   )}
 

@@ -21,6 +21,8 @@ public class StockExitResponse {
     private String productCategory;
     // Cat B
     private String siteName;
+    private String gasoilType;
+    private String immatriculation;
     // Cat A
     private String code;
     private String serialNumber;

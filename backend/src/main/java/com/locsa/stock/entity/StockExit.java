@@ -52,6 +52,14 @@ public class StockExit {
     @Column(length = 100)
     private String serialNumber;
 
+    // Cat B: gasoil type — GE (groupe électrogène) or VEHICULE
+    @Column(length = 20)
+    private String gasoilType;
+
+    // Cat B - VEHICULE: vehicle registration plate
+    @Column(length = 50)
+    private String immatriculation;
+
     @Column(unique = true)
     private String reference;
 }

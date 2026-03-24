@@ -25,8 +25,14 @@ public class StockExitRequest {
 
     private City city; // optional — backend overrides with user's city for non-admin
 
-    // Cat B: destination site
+    // Cat B: destination site (GE only)
     private Long siteId;
+
+    // Cat B: gasoil type — "GE" or "VEHICULE"
+    private String gasoilType;
+
+    // Cat B - VEHICULE: vehicle registration plate
+    private String immatriculation;
 
     // Cat A: electric generator details
     private String code;
