@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react'
 import { Menu, LogOut, ChevronDown, Shield, User2, Moon, Sun, Camera, Loader2 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
+import { useToast } from '../context/ToastContext'
 import { useNavigate } from 'react-router-dom'
 import { uploadAvatar } from '../api/users'
 
@@ -30,6 +31,7 @@ const Avatar = ({ avatarUrl, username, isAdmin, size = 8, rounded = 'rounded-xl'
 const Navbar = ({ onMenuClick }) => {
   const { user, logout, updateAvatar } = useAuth()
   const { darkMode, toggleDarkMode } = useTheme()
+  const toast = useToast()
   const navigate = useNavigate()
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -48,7 +50,7 @@ const Navbar = ({ onMenuClick }) => {
       const res = await uploadAvatar(user.id, file)
       updateAvatar(res.data.avatarUrl + '?t=' + Date.now())
     } catch {
-      alert('Erreur lors de l\'upload de la photo.')
+      toast.error('Erreur lors de l\'upload de la photo.')
     } finally {
       setUploading(false)
       e.target.value = ''

@@ -2,6 +2,7 @@ import React from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
+import { ToastProvider } from './context/ToastContext'
 import ProtectedRoute from './components/ProtectedRoute'
 
 const RoleRedirect = () => {
@@ -27,6 +28,7 @@ import AuditLog from './pages/AuditLog'
 function App() {
   return (
     <ThemeProvider>
+    <ToastProvider>
     <AuthProvider>
       <Router>
         <Routes>
@@ -53,6 +55,7 @@ function App() {
         </Routes>
       </Router>
     </AuthProvider>
+    </ToastProvider>
     </ThemeProvider>
   )
 }

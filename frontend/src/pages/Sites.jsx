@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { getSites, createSite, updateSite, deleteSite } from '../api/sites'
 import ConfirmDialog from '../components/ConfirmDialog'
+import { useToast } from '../context/ToastContext'
 import { Plus, Pencil, Trash2, X, Loader2, MapPin, Building } from 'lucide-react'
 
 const CITIES = [
@@ -18,6 +19,7 @@ const CITY_COLORS = {
 const emptyForm = { name: '', city: '', active: true }
 
 const Sites = () => {
+  const toast = useToast()
   const [sites, setSites] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -88,8 +90,10 @@ const Sites = () => {
       const payload = { name: form.name.trim(), city: form.city, active: form.active }
       if (editing) {
         await updateSite(editing.id, payload)
+        toast.success('Site modifié avec succès')
       } else {
         await createSite(payload)
+        toast.success('Site créé avec succès')
       }
       closeModal()
       fetchSites()
@@ -105,10 +109,12 @@ const Sites = () => {
     setDeleteLoading(true)
     try {
       await deleteSite(deleteTarget.id)
+      toast.success('Site supprimé')
       setDeleteTarget(null)
       fetchSites()
     } catch (err) {
-      alert(err.response?.data?.error || 'Impossible de supprimer ce site.')
+      toast.error(err.response?.data?.error || 'Impossible de supprimer ce site.')
+      setDeleteTarget(null)
     } finally {
       setDeleteLoading(false)
     }

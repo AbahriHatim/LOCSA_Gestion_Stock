@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { getProducts, getProductsPaginated, createProduct, updateProduct, deleteProduct, getProductHistory } from '../api/products'
 import AlertBadge from '../components/AlertBadge'
 import ConfirmDialog from '../components/ConfirmDialog'
+import { useToast } from '../context/ToastContext'
 import Pagination from '../components/Pagination'
 import { exportToExcel } from '../utils/exportUtils'
 import { Plus, Pencil, Trash2, X, Loader2, Search, Package, History, TrendingUp, TrendingDown, ClipboardList, FileDown } from 'lucide-react'
@@ -15,6 +16,7 @@ const CATEGORIES = [
 const emptyForm = { name: '', description: '', quantity: '', category: 'C', minQuantity: '0' }
 
 const Products = () => {
+  const toast = useToast()
   const [productsPage, setProductsPage] = useState({ content: [], totalElements: 0, totalPages: 0, currentPage: 0, pageSize: 20 })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -115,8 +117,10 @@ const Products = () => {
       }
       if (editing) {
         await updateProduct(editing.id, payload)
+        toast.success('Produit modifié avec succès')
       } else {
         await createProduct(payload)
+        toast.success('Produit créé avec succès')
       }
       closeModal()
       fetchProducts(productsPage.currentPage)
@@ -132,10 +136,12 @@ const Products = () => {
     setDeleteLoading(true)
     try {
       await deleteProduct(confirmDelete.id)
+      toast.success('Produit supprimé')
       setConfirmDelete(null)
       fetchProducts(productsPage.currentPage)
     } catch (err) {
-      alert(err.response?.data?.error || 'Impossible de supprimer ce produit.')
+      toast.error(err.response?.data?.error || 'Impossible de supprimer ce produit.')
+      setConfirmDelete(null)
     } finally {
       setDeleteLoading(false)
     }

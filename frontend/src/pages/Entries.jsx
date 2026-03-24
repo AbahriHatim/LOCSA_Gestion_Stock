@@ -2,9 +2,11 @@ import React, { useEffect, useState } from 'react'
 import { getEntries, createEntry, deleteEntry } from '../api/entries'
 import { getProducts } from '../api/products'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
 import { Plus, X, Loader2, TrendingUp, Search, MapPin, Building2, Download, Printer, Trash2 } from 'lucide-react'
 import { exportToExcel } from '../utils/exportUtils'
 import Pagination from '../components/Pagination'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 const today = new Date().toISOString().split('T')[0]
 
@@ -44,6 +46,8 @@ const emptyForm = {
 
 const Entries = () => {
   const { isAdmin, userCity } = useAuth()
+  const toast = useToast()
+  const [cancelTarget, setCancelTarget] = useState(null) // { id, ref }
   const [entriesPage, setEntriesPage] = useState({ content: [], totalElements: 0, totalPages: 0, currentPage: 0, pageSize: 20 })
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
@@ -158,6 +162,7 @@ const Entries = () => {
       }
       await createEntry(payload)
       closeModal()
+      toast.success('Entrée enregistrée avec succès')
       fetchAll(cityFilter, 0)
     } catch (err) {
       setFormError(err.response?.data?.error || 'Une erreur est survenue.')
@@ -166,13 +171,16 @@ const Entries = () => {
     }
   }
 
-  const handleCancelEntry = async (id, ref) => {
-    if (!window.confirm(`Annuler l'entrée ${ref || '#' + id} ? Le stock sera recalculé.`)) return
+  const handleCancelEntry = async () => {
+    if (!cancelTarget) return
     try {
-      await deleteEntry(id)
+      await deleteEntry(cancelTarget.id)
+      toast.success(`Entrée ${cancelTarget.ref || ''} annulée`)
       fetchAll(cityFilter, entriesPage.currentPage)
     } catch (err) {
-      alert(err.response?.data?.error || 'Erreur lors de l\'annulation.')
+      toast.error(err.response?.data?.error || "Erreur lors de l'annulation.")
+    } finally {
+      setCancelTarget(null)
     }
   }
 
@@ -363,7 +371,7 @@ const Entries = () => {
                     {isAdmin && (
                       <td className="table-cell">
                         <button
-                          onClick={() => handleCancelEntry(entry.id, entry.reference)}
+                          onClick={() => setCancelTarget({ id: entry.id, ref: entry.reference })}
                           className="text-red-400 hover:text-red-600 transition-colors"
                           title="Annuler cette entrée"
                         >
@@ -572,6 +580,15 @@ const Entries = () => {
           </div>
         </div>
       )}
+      <ConfirmDialog
+        isOpen={!!cancelTarget}
+        title="Annuler cette entrée ?"
+        message={`L'entrée ${cancelTarget?.ref || ''} sera supprimée et le stock recalculé.`}
+        confirmLabel="Annuler l'entrée"
+        onConfirm={handleCancelEntry}
+        onCancel={() => setCancelTarget(null)}
+        variant="danger"
+      />
     </div>
   )
 }

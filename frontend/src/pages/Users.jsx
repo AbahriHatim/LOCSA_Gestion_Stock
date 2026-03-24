@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { getUsers, createUser, updateUser, changePassword, toggleActive, deleteUser, uploadAvatar } from '../api/users'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import {
   Plus, X, Loader2, Users as UsersIcon, Trash2, ShieldCheck, User,
@@ -23,6 +24,7 @@ const emptyCreateForm = { username: '', password: '', role: 'USER', city: '' }
 
 const Users = () => {
   const { user: currentUser, updateAvatar } = useAuth()
+  const toast = useToast()
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -79,10 +81,10 @@ const Users = () => {
       const res = await uploadAvatar(userId, file)
       const newUrl = res.data.avatarUrl + '?t=' + Date.now()
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, avatarUrl: newUrl } : u))
-      // If uploading for ourselves, update the context too
       if (currentUser?.id === userId) updateAvatar(newUrl)
+      toast.success('Photo mise à jour')
     } catch {
-      alert('Erreur lors de l\'upload de la photo.')
+      toast.error('Erreur lors de l\'upload de la photo.')
     } finally {
       setAvatarUploading(null)
     }
@@ -121,6 +123,7 @@ const Users = () => {
         role: createForm.role,
         city: createForm.role === 'USER' ? createForm.city : null,
       })
+      toast.success('Compte créé avec succès')
       setShowCreate(false)
       setCreateForm(emptyCreateForm)
       fetchUsers()
@@ -168,6 +171,7 @@ const Users = () => {
         role: editForm.role,
         city: editForm.role === 'USER' ? editForm.city : null,
       })
+      toast.success('Utilisateur modifié')
       setEditUser(null)
       fetchUsers()
     } catch (err) {
@@ -187,6 +191,7 @@ const Users = () => {
     setPwdError('')
     try {
       await changePassword(pwdUser.id, newPassword)
+      toast.success('Mot de passe modifié')
       setPwdUser(null)
     } catch (err) {
       setPwdError(err.response?.data?.error || 'Une erreur est survenue.')
@@ -200,10 +205,11 @@ const Users = () => {
     setSuspendLoading(true)
     try {
       await toggleActive(suspendUser.id)
+      toast.success(suspendUser.active ? 'Compte suspendu' : 'Compte réactivé')
       setSuspendUser(null)
       fetchUsers()
     } catch (err) {
-      alert(err.response?.data?.error || 'Erreur.')
+      toast.error(err.response?.data?.error || 'Erreur.')
     } finally {
       setSuspendLoading(false)
     }
@@ -214,10 +220,11 @@ const Users = () => {
     setDeleteLoading(true)
     try {
       await deleteUser(deleteId)
+      toast.success('Compte supprimé')
       setDeleteId(null)
       fetchUsers()
     } catch (err) {
-      alert(err.response?.data?.error || 'Erreur lors de la suppression.')
+      toast.error(err.response?.data?.error || 'Erreur lors de la suppression.')
     } finally {
       setDeleteLoading(false)
     }

@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { getExits, createExit, deleteExit } from '../api/exits'
+import { useToast } from '../context/ToastContext'
+import ConfirmDialog from '../components/ConfirmDialog'
 import { getProducts } from '../api/products'
 import { getSites } from '../api/sites'
 import { useAuth } from '../context/AuthContext'
@@ -50,6 +52,8 @@ const emptyForm = {
 
 const Exits = () => {
   const { isAdmin, userCity } = useAuth()
+  const toast = useToast()
+  const [cancelTarget, setCancelTarget] = useState(null)
   const [exitsPage, setExitsPage]       = useState({ content: [], totalElements: 0, totalPages: 0, currentPage: 0, pageSize: 20 })
   const [products, setProducts] = useState([])
   const [sites, setSites]       = useState([])
@@ -174,6 +178,7 @@ const Exits = () => {
       }
       await createExit(payload)
       closeModal()
+      toast.success('Sortie enregistrée avec succès')
       fetchAll(cityFilter, 0)
     } catch (err) {
       setFormError(err.response?.data?.error || 'Une erreur est survenue.')
@@ -182,13 +187,16 @@ const Exits = () => {
     }
   }
 
-  const handleCancelExit = async (id, ref) => {
-    if (!window.confirm(`Annuler la sortie ${ref || '#' + id} ? Le stock sera recalculé.`)) return
+  const handleCancelExit = async () => {
+    if (!cancelTarget) return
     try {
-      await deleteExit(id)
+      await deleteExit(cancelTarget.id)
+      toast.success(`Sortie ${cancelTarget.ref || ''} annulée`)
       fetchAll(cityFilter, exitsPage.currentPage)
     } catch (err) {
-      alert(err.response?.data?.error || 'Erreur lors de l\'annulation.')
+      toast.error(err.response?.data?.error || "Erreur lors de l'annulation.")
+    } finally {
+      setCancelTarget(null)
     }
   }
 
@@ -397,7 +405,7 @@ const Exits = () => {
                     {isAdmin && (
                       <td className="table-cell">
                         <button
-                          onClick={() => handleCancelExit(exit.id, exit.reference)}
+                          onClick={() => setCancelTarget({ id: exit.id, ref: exit.reference })}
                           className="text-red-400 hover:text-red-600 transition-colors"
                           title="Annuler cette sortie"
                         >
@@ -670,6 +678,15 @@ const Exits = () => {
           </div>
         </div>
       )}
+      <ConfirmDialog
+        isOpen={!!cancelTarget}
+        title="Annuler cette sortie ?"
+        message={`La sortie ${cancelTarget?.ref || ''} sera supprimée et le stock recalculé.`}
+        confirmLabel="Annuler la sortie"
+        onConfirm={handleCancelExit}
+        onCancel={() => setCancelTarget(null)}
+        variant="danger"
+      />
     </div>
   )
 }
