@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard,
@@ -10,6 +10,8 @@ import {
   MapPin,
   X,
   History,
+  Shield,
+  User2,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import logo from '../assets/logo.png'
@@ -114,8 +116,29 @@ const Sidebar = ({ isOpen, onClose }) => {
   )
 }
 
+const SidebarAvatar = ({ user, isAdmin }) => {
+  const [imgError, setImgError] = useState(false)
+  if (user?.avatarUrl && !imgError) {
+    return (
+      <img
+        src={user.avatarUrl}
+        alt={user.username}
+        className="w-9 h-9 rounded-xl object-cover ring-2 ring-white/20"
+        onError={() => setImgError(true)}
+      />
+    )
+  }
+  return (
+    <div className={`w-9 h-9 rounded-xl flex items-center justify-center ring-2 ring-white/20 ${
+      isAdmin ? 'bg-orange-500' : 'bg-blue-500'
+    }`}>
+      {isAdmin ? <Shield size={16} className="text-white" /> : <User2 size={16} className="text-white" />}
+    </div>
+  )
+}
+
 const SidebarContent = () => {
-  const { isAdmin } = useAuth()
+  const { isAdmin, user } = useAuth()
 
   return (
     <div className="flex flex-col h-full">
@@ -193,9 +216,18 @@ const SidebarContent = () => {
         )}
       </nav>
 
-      {/* Footer */}
-      <div className="px-4 py-4 border-t border-white/10">
-        <p className="text-[10px] text-slate-500 dark:text-gray-600 text-center tracking-wide">© {new Date().getFullYear()} LOCSA SARL — v1.0</p>
+      {/* User profile footer */}
+      <div className="px-3 py-3 border-t border-white/10">
+        <div className="flex items-center gap-2.5 px-2 py-2 rounded-xl bg-white/5">
+          <SidebarAvatar user={user} isAdmin={isAdmin} />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-white truncate">{user?.username}</p>
+            <p className={`text-xs truncate ${isAdmin ? 'text-orange-300' : 'text-blue-300'}`}>
+              {isAdmin ? 'Administrateur' : (user?.city ? user.city.charAt(0) + user.city.slice(1).toLowerCase() : 'Utilisateur')}
+            </p>
+          </div>
+        </div>
+        <p className="text-[10px] text-slate-600 text-center tracking-wide mt-2">© {new Date().getFullYear()} LOCSA SARL</p>
       </div>
     </div>
   )

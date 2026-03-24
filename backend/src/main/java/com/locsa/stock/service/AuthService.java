@@ -43,7 +43,8 @@ public class AuthService {
 
         String token = jwtUtil.generateToken(userDetails);
         String city = user.getCity() != null ? user.getCity().name() : null;
-        return new AuthResponse(token, user.getUsername(), user.getRole().name(), city);
+        String avatarUrl = user.getAvatarPath() != null ? "/api/users/" + user.getId() + "/avatar" : null;
+        return new AuthResponse(token, user.getUsername(), user.getRole().name(), city, user.getId(), avatarUrl);
     }
 
     public AuthResponse register(RegisterRequest request) {
@@ -66,13 +67,14 @@ public class AuthService {
         UserDetails userDetails = userDetailsService.loadUserByUsername(user.getUsername());
         String token = jwtUtil.generateToken(userDetails);
         String city = user.getCity() != null ? user.getCity().name() : null;
-        return new AuthResponse(token, user.getUsername(), user.getRole().name(), city);
+        return new AuthResponse(token, user.getUsername(), user.getRole().name(), city, user.getId(), null);
     }
 
     public List<UserResponse> getAllUsers() {
         return userRepository.findAll().stream()
                 .map(u -> new UserResponse(u.getId(), u.getUsername(), u.getRole().name(),
-                        u.getCity() != null ? u.getCity().name() : null, u.isActive()))
+                        u.getCity() != null ? u.getCity().name() : null, u.isActive(),
+                        u.getAvatarPath() != null ? "/api/users/" + u.getId() + "/avatar" : null))
                 .toList();
     }
 
@@ -107,7 +109,8 @@ public class AuthService {
                 + " rôle=" + user.getRole().name()
                 + (user.getCity() != null ? " ville=" + user.getCity().name() : ""), null);
         return new UserResponse(user.getId(), user.getUsername(), user.getRole().name(),
-                user.getCity() != null ? user.getCity().name() : null, user.isActive());
+                user.getCity() != null ? user.getCity().name() : null, user.isActive(),
+                user.getAvatarPath() != null ? "/api/users/" + user.getId() + "/avatar" : null);
     }
 
     public void changePassword(Long id, String newPassword) {
@@ -131,7 +134,8 @@ public class AuthService {
         auditService.log("USER", id, "UPDATE", currentAdmin(),
                 (wasSuspended ? "Compte réactivé: " : "Compte suspendu: ") + user.getUsername(), null);
         return new UserResponse(user.getId(), user.getUsername(), user.getRole().name(),
-                user.getCity() != null ? user.getCity().name() : null, user.isActive());
+                user.getCity() != null ? user.getCity().name() : null, user.isActive(),
+                user.getAvatarPath() != null ? "/api/users/" + user.getId() + "/avatar" : null);
     }
 
     public void deleteUser(Long id) {

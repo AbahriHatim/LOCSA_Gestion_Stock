@@ -57,15 +57,23 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (credentials) => {
     const response = await loginApi(credentials)
-    const { token, username, role, city } = response.data
+    const { token, username, role, city, id, avatarUrl } = response.data
     const expiresAt = getTokenExpiry(token)
-    const userData = { username, role, city }
+    const userData = { id, username, role, city, avatarUrl }
     localStorage.setItem('user', JSON.stringify(userData))
     if (expiresAt) localStorage.setItem('expiresAt', String(expiresAt))
     setUser(userData)
     setSessionWarning(false)
     scheduleSessionTimers(expiresAt)
     return userData
+  }
+
+  const updateAvatar = (avatarUrl) => {
+    setUser(prev => {
+      const updated = { ...prev, avatarUrl }
+      localStorage.setItem('user', JSON.stringify(updated))
+      return updated
+    })
   }
 
   const logout = () => {
@@ -81,6 +89,7 @@ export const AuthProvider = ({ children }) => {
     user,
     login,
     logout,
+    updateAvatar,
     loading,
     sessionWarning,
     dismissWarning: () => setSessionWarning(false),

@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react'
-import { getUsers, createUser, updateUser, changePassword, toggleActive, deleteUser } from '../api/users'
+import { getUsers, createUser, updateUser, changePassword, toggleActive, deleteUser, uploadAvatar } from '../api/users'
+import { useAuth } from '../context/AuthContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import {
   Plus, X, Loader2, Users as UsersIcon, Trash2, ShieldCheck, User,
-  MapPin, Pencil, KeyRound, PowerOff, Power, AlertTriangle
+  MapPin, Pencil, KeyRound, PowerOff, Power, AlertTriangle, Camera
 } from 'lucide-react'
 
 const CITIES = [
@@ -21,9 +22,11 @@ const CITY_COLORS = {
 const emptyCreateForm = { username: '', password: '', role: 'USER', city: '' }
 
 const Users = () => {
+  const { user: currentUser, updateAvatar } = useAuth()
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [avatarUploading, setAvatarUploading] = useState(null) // userId being uploaded
 
   // Create modal
   const [showCreate, setShowCreate] = useState(false)
@@ -68,6 +71,22 @@ const Users = () => {
   }
 
   useEffect(() => { fetchUsers() }, [])
+
+  const handleAvatarUpload = async (userId, file) => {
+    if (!file) return
+    setAvatarUploading(userId)
+    try {
+      const res = await uploadAvatar(userId, file)
+      const newUrl = res.data.avatarUrl + '?t=' + Date.now()
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, avatarUrl: newUrl } : u))
+      // If uploading for ourselves, update the context too
+      if (currentUser?.id === userId) updateAvatar(newUrl)
+    } catch {
+      alert('Erreur lors de l\'upload de la photo.')
+    } finally {
+      setAvatarUploading(null)
+    }
+  }
 
   /* ── CREATE ── */
   const validateCreate = () => {
@@ -254,10 +273,37 @@ const Users = () => {
                   <tr key={u.id} className={`hover:bg-gray-50 transition-colors ${!u.active ? 'opacity-60' : ''}`}>
                     <td className="table-cell text-gray-400 text-xs">{idx + 1}</td>
                     <td className="table-cell">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${u.active ? 'bg-blue-100' : 'bg-gray-100'}`}>
-                          <User size={14} className={u.active ? 'text-blue-600' : 'text-gray-400'} />
-                        </div>
+                      <div className="flex items-center gap-2.5">
+                        {/* Avatar with upload button */}
+                        <label className="relative cursor-pointer group flex-shrink-0" title="Changer la photo">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={e => e.target.files[0] && handleAvatarUpload(u.id, e.target.files[0])}
+                          />
+                          {u.avatarUrl ? (
+                            <img
+                              src={u.avatarUrl}
+                              alt={u.username}
+                              className={`w-9 h-9 rounded-xl object-cover ring-2 ${u.active ? 'ring-blue-200' : 'ring-gray-200'}`}
+                            />
+                          ) : (
+                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${u.active ? 'bg-blue-100' : 'bg-gray-100'}`}>
+                              {u.role === 'ADMIN'
+                                ? <ShieldCheck size={15} className={u.active ? 'text-purple-600' : 'text-gray-400'} />
+                                : <User size={15} className={u.active ? 'text-blue-600' : 'text-gray-400'} />
+                              }
+                            </div>
+                          )}
+                          {/* Overlay on hover */}
+                          <div className="absolute inset-0 rounded-xl bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            {avatarUploading === u.id
+                              ? <Loader2 size={12} className="text-white animate-spin" />
+                              : <Camera size={12} className="text-white" />
+                            }
+                          </div>
+                        </label>
                         <span className={`font-semibold ${u.active ? 'text-gray-800' : 'text-gray-400'}`}>{u.username}</span>
                       </div>
                     </td>

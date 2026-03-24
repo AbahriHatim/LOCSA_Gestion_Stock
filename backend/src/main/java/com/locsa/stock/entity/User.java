@@ -32,4 +32,7 @@ public class User {
     @Column(nullable = false, columnDefinition = "boolean default true")
     @Builder.Default
     private boolean active = true;
+
+    @Column(length = 255)
+    private String avatarPath; // relative path under upload dir, e.g. "avatars/3.jpg"
 }
