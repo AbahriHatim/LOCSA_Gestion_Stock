@@ -26,7 +26,14 @@ jobs:
       - name: Extract repo lowercase
         id: repo
         run: echo "repo=${GITHUB_REPOSITORY,,}" >> $GITHUB_OUTPUT
-
+      - name: Debug GHCR username
+        run: |
+          if [ -z "${{ secrets.GHCR_USERNAME }}" ]; then
+            echo "GHCR_USERNAME is empty"
+            exit 1
+          else
+            echo "GHCR_USERNAME exists"
+          fi
       - name: Build backend image
         run: |
           docker build -t ghcr.io/${{ steps.repo.outputs.repo }}/backend:latest ./backend
@@ -42,14 +49,7 @@ jobs:
       - name: Push frontend image
         run: |
           docker push ghcr.io/${{ steps.repo.outputs.repo }}/frontend:latest
-      - name: Debug GHCR username
-        run: |
-          if [ -z "${{ secrets.GHCR_USERNAME }}" ]; then
-            echo "GHCR_USERNAME is empty"
-            exit 1
-          else
-            echo "GHCR_USERNAME exists"
-          fi
+
       - name: Deploy on server
         uses: appleboy/ssh-action@v1.0.3
         with:
