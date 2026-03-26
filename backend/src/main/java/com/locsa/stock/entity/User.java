@@ -35,4 +35,7 @@ public class User {
 
     @Column(length = 255)
     private String avatarPath; // relative path under upload dir, e.g. "avatars/3.jpg"
+
+    @Column(unique = true, length = 100)
+    private String email;
 }

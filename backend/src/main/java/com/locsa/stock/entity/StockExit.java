@@ -3,6 +3,7 @@ package com.locsa.stock.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "stock_exits")
@@ -62,4 +63,12 @@ public class StockExit {
 
     @Column(unique = true)
     private String reference;
+
+    @Column(updatable = false)
+    private LocalDateTime createdAt;
+
+    @PrePersist
+    protected void onCreate() {
+        this.createdAt = LocalDateTime.now();
+    }
 }

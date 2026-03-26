@@ -12,8 +12,7 @@ import lombok.Data;
 public class RegisterRequest {
 
     @NotBlank(message = "Le nom d'utilisateur est requis")
-    @Size(min = 3, max = 30, message = "Le nom d'utilisateur doit faire entre 3 et 30 caractères")
-    @Pattern(regexp = "^\\S+$", message = "Le nom d'utilisateur ne doit pas contenir d'espaces")
+    @Size(min = 2, max = 50, message = "Le nom d'utilisateur doit faire entre 2 et 50 caractères")
     private String username;
 
     @NotBlank(message = "Le mot de passe est requis")
@@ -24,4 +23,7 @@ public class RegisterRequest {
     private Role role;
 
     private City city; // required for USER, null for ADMIN
+
+    @jakarta.validation.constraints.Email(message = "Email invalide")
+    private String email; // optional, used to send credentials
 }

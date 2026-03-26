@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,7 +35,7 @@ public class StockExitService {
     private final AuditService auditService;
 
     public PageResponse<StockExitResponse> getAllExits(String username, boolean isAdmin, City city, LocalDate dateFrom, LocalDate dateTo, int page, int size) {
-        Pageable pageable = PageRequest.of(page, size);
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<StockExit> result;
         boolean hasDateFilter = dateFrom != null && dateTo != null;
         if (city != null) {
@@ -170,7 +171,8 @@ public class StockExitService {
                 exit.getImmatriculation(),
                 exit.getCode(),
                 exit.getSerialNumber(),
-                exit.getReference()
+                exit.getReference(),
+                exit.getCreatedAt()
         );
     }
 

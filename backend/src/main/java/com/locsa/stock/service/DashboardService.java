@@ -13,11 +13,10 @@ import com.locsa.stock.repository.ProductRepository;
 import com.locsa.stock.repository.StockEntryRepository;
 import com.locsa.stock.repository.StockExitRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -60,11 +59,20 @@ public class DashboardService {
     }
 
     public List<ProductCityStockResponse> getStockByProduct() {
+        // 6 batch queries total (2 per city) instead of 6N queries
+        Map<Long, Long> entTanger = toBatchMap(stockEntryRepository.getTotalEntriesPerProductForCity(City.TANGER));
+        Map<Long, Long> extTanger = toBatchMap(stockExitRepository.getTotalExitsPerProductForCity(City.TANGER));
+        Map<Long, Long> entMeknes = toBatchMap(stockEntryRepository.getTotalEntriesPerProductForCity(City.MEKNES));
+        Map<Long, Long> extMeknes = toBatchMap(stockExitRepository.getTotalExitsPerProductForCity(City.MEKNES));
+        Map<Long, Long> entCasa   = toBatchMap(stockEntryRepository.getTotalEntriesPerProductForCity(City.CASABLANCA));
+        Map<Long, Long> extCasa   = toBatchMap(stockExitRepository.getTotalExitsPerProductForCity(City.CASABLANCA));
+
         return productRepository.findAll().stream()
                 .map(product -> {
-                    Long tanger = cityStock(product.getId(), City.TANGER);
-                    Long meknes = cityStock(product.getId(), City.MEKNES);
-                    Long casa   = cityStock(product.getId(), City.CASABLANCA);
+                    long id     = product.getId();
+                    long tanger = entTanger.getOrDefault(id, 0L) - extTanger.getOrDefault(id, 0L);
+                    long meknes = entMeknes.getOrDefault(id, 0L) - extMeknes.getOrDefault(id, 0L);
+                    long casa   = entCasa.getOrDefault(id, 0L)   - extCasa.getOrDefault(id, 0L);
                     return new ProductCityStockResponse(product.getName(), tanger, meknes, casa, tanger + meknes + casa);
                 })
                 .filter(p -> p.getTotalStock() > 0)
@@ -73,16 +81,22 @@ public class DashboardService {
     }
 
     public List<TopProductResponse> getTopProducts(City city) {
-        List<Product> products = productRepository.findAll();
-        return products.stream().map(p -> {
-            Long entries = city != null
-                    ? stockEntryRepository.getTotalEntriesByProductAndCity(p.getId(), city)
-                    : stockEntryRepository.getTotalEntriesByProduct(p.getId());
-            Long exits = city != null
-                    ? stockExitRepository.getTotalExitsByProductAndCity(p.getId(), city)
-                    : stockExitRepository.getTotalExitsByProduct(p.getId());
-            long movement = (entries != null ? entries : 0L) + (exits != null ? exits : 0L);
-            return new TopProductResponse(p.getName(), entries != null ? entries : 0L, exits != null ? exits : 0L, movement);
+        // 2 batch queries instead of 2N
+        Map<Long, Long> entriesMap;
+        Map<Long, Long> exitsMap;
+        if (city != null) {
+            entriesMap = toBatchMap(stockEntryRepository.getTotalEntriesPerProductForCity(city));
+            exitsMap   = toBatchMap(stockExitRepository.getTotalExitsPerProductForCity(city));
+        } else {
+            entriesMap = toBatchMap(stockEntryRepository.getTotalEntriesPerProduct());
+            exitsMap   = toBatchMap(stockExitRepository.getTotalExitsPerProduct());
+        }
+
+        return productRepository.findAll().stream().map(p -> {
+            long entries  = entriesMap.getOrDefault(p.getId(), 0L);
+            long exits    = exitsMap.getOrDefault(p.getId(), 0L);
+            long movement = entries + exits;
+            return new TopProductResponse(p.getName(), entries, exits, movement);
         })
         .filter(t -> t.getTotalMovement() > 0)
         .sorted((a, b) -> Long.compare(b.getTotalMovement(), a.getTotalMovement()))
@@ -91,12 +105,14 @@ public class DashboardService {
     }
 
     public List<ActivityFeedItem> getActivityFeed(City city) {
+        // JOIN FETCH avoids lazy loading N+1 on product
+        PageRequest top10 = PageRequest.of(0, 10);
         List<StockEntry> entries = city != null
-                ? stockEntryRepository.findByCityOrderByDateEntryDesc(city).stream().limit(10).collect(Collectors.toList())
-                : stockEntryRepository.findTop10ByOrderByDateEntryDesc();
+                ? stockEntryRepository.findTop10ByCityWithProduct(city, top10)
+                : stockEntryRepository.findTop10WithProduct(top10);
         List<StockExit> exits = city != null
-                ? stockExitRepository.findByCityOrderByDateExitDesc(city).stream().limit(10).collect(Collectors.toList())
-                : stockExitRepository.findTop10ByOrderByDateExitDesc();
+                ? stockExitRepository.findTop10ByCityWithProduct(city, top10)
+                : stockExitRepository.findTop10WithProduct(top10);
 
         List<ActivityFeedItem> feed = new ArrayList<>();
         entries.forEach(e -> feed.add(new ActivityFeedItem("ENTRY", e.getProduct().getName(), e.getQuantity(), e.getCity() != null ? e.getCity().name() : null, e.getCreatedBy(), e.getDateEntry(), e.getReference())));
@@ -106,11 +122,11 @@ public class DashboardService {
         return feed.stream().limit(15).collect(Collectors.toList());
     }
 
-    private Long cityStock(Long productId, City city) {
-        Long entries = stockEntryRepository.getTotalEntriesByProductAndCity(productId, city);
-        Long exits   = stockExitRepository.getTotalExitsByProductAndCity(productId, city);
-        if (entries == null) entries = 0L;
-        if (exits   == null) exits   = 0L;
-        return entries - exits;
+    private Map<Long, Long> toBatchMap(List<Object[]> rows) {
+        Map<Long, Long> map = new HashMap<>();
+        for (Object[] row : rows) {
+            map.put((Long) row[0], ((Number) row[1]).longValue());
+        }
+        return map;
     }
 }

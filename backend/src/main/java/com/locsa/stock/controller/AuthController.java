@@ -24,21 +24,21 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request, HttpServletResponse httpResponse) {
-        String username = request.getUsername();
-        if (loginAttemptService.isBlocked(username)) {
-            long remaining = loginAttemptService.remainingLockSeconds(username);
+        String key = request.getEmail();
+        if (loginAttemptService.isBlocked(key)) {
+            long remaining = loginAttemptService.remainingLockSeconds(key);
             return ResponseEntity.status(429).body(Map.of(
                 "error", "Compte temporairement bloqué après trop de tentatives. Réessayez dans " + remaining + " secondes."
             ));
         }
         try {
             AuthResponse response = authService.login(request);
-            loginAttemptService.loginSucceeded(username);
+            loginAttemptService.loginSucceeded(key);
             setJwtCookie(httpResponse, response.getToken());
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            loginAttemptService.loginFailed(username);
-            return ResponseEntity.status(401).body(Map.of("error", "Nom d'utilisateur ou mot de passe incorrect"));
+            loginAttemptService.loginFailed(key);
+            return ResponseEntity.status(401).body(Map.of("error", "Email ou mot de passe incorrect"));
         }
     }
 
@@ -53,6 +53,32 @@ public class AuthController {
         try {
             AuthResponse response = authService.register(request);
             return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@RequestBody Map<String, String> body) {
+        String email = body.get("email");
+        if (email == null || email.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Email requis"));
+        }
+        authService.forgotPassword(email.trim());
+        // Always return OK to not reveal if email exists
+        return ResponseEntity.ok(Map.of("message", "Si cet email existe, un lien a été envoyé"));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@RequestBody Map<String, String> body) {
+        String token = body.get("token");
+        String newPassword = body.get("newPassword");
+        if (token == null || token.isBlank() || newPassword == null || newPassword.length() < 6) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Données invalides"));
+        }
+        try {
+            authService.resetPassword(token, newPassword);
+            return ResponseEntity.ok(Map.of("message", "Mot de passe réinitialisé avec succès"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }

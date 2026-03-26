@@ -20,7 +20,7 @@ const CITY_COLORS = {
   CASABLANCA: 'bg-orange-100 text-orange-700',
 }
 
-const emptyCreateForm = { username: '', password: '', role: 'USER', city: '' }
+const emptyCreateForm = { username: '', password: '', role: 'USER', city: '', email: '' }
 
 const Users = () => {
   const { user: currentUser, updateAvatar } = useAuth()
@@ -122,6 +122,7 @@ const Users = () => {
         password: createForm.password,
         role: createForm.role,
         city: createForm.role === 'USER' ? createForm.city : null,
+        email: createForm.email.trim() || null,
       })
       toast.success('Compte créé avec succès')
       setShowCreate(false)
@@ -137,7 +138,7 @@ const Users = () => {
   /* ── EDIT ── */
   const openEdit = (u) => {
     setEditUser(u)
-    setEditForm({ username: u.username, role: u.role, city: u.city || '' })
+    setEditForm({ username: u.username, role: u.role, city: u.city || '', email: u.email || '' })
     setEditErrors({})
     setEditError('')
   }
@@ -170,6 +171,7 @@ const Users = () => {
         username: editForm.username.trim(),
         role: editForm.role,
         city: editForm.role === 'USER' ? editForm.city : null,
+        email: editForm.email.trim() || null,
       })
       toast.success('Utilisateur modifié')
       setEditUser(null)
@@ -414,7 +416,7 @@ const Users = () => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nom d'utilisateur *</label>
                 <input type="text" name="username" value={createForm.username} onChange={handleCreateChange}
-                  className={`input-field ${createErrors.username ? 'border-red-400' : ''}`} placeholder="ex: jean.dupont" autoComplete="off" />
+                  className={`input-field ${createErrors.username ? 'border-red-400' : ''}`} placeholder="Un nom d'utilisateur" autoComplete="off" />
                 {createErrors.username && <p className="mt-1 text-xs text-red-500">{createErrors.username}</p>}
               </div>
               <div>
@@ -445,6 +447,13 @@ const Users = () => {
                   {createErrors.city && <p className="mt-1 text-xs text-red-500">{createErrors.city}</p>}
                 </div>
               )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Email <span className="text-gray-400 font-normal">(optionnel — pour recevoir les identifiants)</span>
+                </label>
+                <input type="email" name="email" value={createForm.email} onChange={handleCreateChange}
+                  className="input-field" placeholder="ex: utilisateur@email.com" autoComplete="off" />
+              </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowCreate(false)} className="btn-secondary flex-1">Annuler</button>
                 <button type="submit" disabled={createLoading} className="btn-primary flex-1 flex items-center justify-center gap-2">
@@ -501,6 +510,13 @@ const Users = () => {
                   )}
                 </>
               )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Email <span className="text-gray-400 font-normal">(optionnel)</span>
+                </label>
+                <input type="email" name="email" value={editForm.email} onChange={handleEditChange}
+                  className="input-field" placeholder="ex: utilisateur@email.com" />
+              </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setEditUser(null)} className="btn-secondary flex-1">Annuler</button>
                 <button type="submit" disabled={editLoading} className="btn-primary flex-1 flex items-center justify-center gap-2">

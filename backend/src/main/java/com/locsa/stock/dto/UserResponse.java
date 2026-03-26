@@ -12,4 +12,5 @@ public class UserResponse {
     private String city; // null for ADMIN
     private boolean active;
     private String avatarUrl; // e.g. "/api/users/3/avatar" or null
+    private String email;
 }

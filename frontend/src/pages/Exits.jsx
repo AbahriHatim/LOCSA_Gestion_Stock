@@ -221,6 +221,7 @@ const Exits = () => {
   }
 
   const formatDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR') : '—'
+  const formatTime = (dt) => dt ? new Date(dt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : null
   const cityLabel  = (c) => CITIES.find(x => x.value === c)?.label || c
 
   const filtered = exitsPage.content.filter(e => {
@@ -393,7 +394,12 @@ const Exits = () => {
                         </span>
                       )}
                     </td>
-                    <td className="table-cell text-gray-500 text-sm">{formatDate(exit.dateExit)}</td>
+                    <td className="table-cell text-gray-500 text-sm">
+                      <div>{formatDate(exit.dateExit)}</div>
+                      {formatTime(exit.createdAt) && (
+                        <div className="text-xs text-gray-400">{formatTime(exit.createdAt)}</div>
+                      )}
+                    </td>
                     {isAdmin && (
                       <td className="table-cell">
                         <span className="px-2 py-0.5 bg-gray-100 rounded-full text-xs text-gray-600 font-medium">{exit.createdBy}</span>

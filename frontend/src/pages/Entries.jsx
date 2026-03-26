@@ -204,6 +204,7 @@ const Entries = () => {
   }
 
   const formatDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR') : '—'
+  const formatTime = (dt) => dt ? new Date(dt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : null
   const cityLabel  = (c) => CITIES.find(x => x.value === c)?.label || c
   const catColor   = (c) => CATEGORIES.find(x => x.value === c)?.color || 'bg-gray-100 text-gray-600'
 
@@ -359,7 +360,12 @@ const Entries = () => {
                       )}
                       {entry.productCategory === 'C' && <span className="italic text-gray-300">—</span>}
                     </td>
-                    <td className="table-cell text-gray-500 text-sm">{formatDate(entry.dateEntry)}</td>
+                    <td className="table-cell text-gray-500 text-sm">
+                      <div>{formatDate(entry.dateEntry)}</div>
+                      {formatTime(entry.createdAt) && (
+                        <div className="text-xs text-gray-400">{formatTime(entry.createdAt)}</div>
+                      )}
+                    </td>
                     {isAdmin && (
                       <td className="table-cell">
                         <span className="px-2 py-0.5 bg-gray-100 rounded-full text-xs text-gray-600 font-medium">{entry.createdBy}</span>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { Warehouse, Eye, EyeOff, Loader2 } from 'lucide-react'
 
@@ -7,7 +7,7 @@ const Login = () => {
   const navigate = useNavigate()
   const { login, isAuthenticated } = useAuth()
 
-  const [form, setForm] = useState({ username: '', password: '' })
+  const [form, setForm] = useState({ email: '', password: '' })
   const [errors, setErrors] = useState({})
   const [serverError, setServerError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -21,9 +21,8 @@ const Login = () => {
 
   const validate = () => {
     const newErrors = {}
-    if (!form.username.trim()) newErrors.username = "Le nom d'utilisateur est requis"
+    if (!form.email.trim()) newErrors.email = "L'email est requis"
     if (!form.password) newErrors.password = 'Le mot de passe est requis'
-    if (form.password && form.password.length < 3) newErrors.password = 'Mot de passe trop court'
     return newErrors
   }
 
@@ -80,23 +79,23 @@ const Login = () => {
           )}
 
           <form onSubmit={handleSubmit} noValidate className="space-y-4">
-            {/* Username */}
+            {/* Email */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Nom d'utilisateur
+                Adresse email
               </label>
               <input
-                type="text"
-                name="username"
-                value={form.username}
+                type="email"
+                name="email"
+                value={form.email}
                 onChange={handleChange}
-                placeholder="Entrez votre nom d'utilisateur"
-                className={`input-field ${errors.username ? 'border-red-400 focus:ring-red-400' : ''}`}
-                autoComplete="username"
+                placeholder="votre@email.com"
+                className={`input-field ${errors.email ? 'border-red-400 focus:ring-red-400' : ''}`}
+                autoComplete="email"
                 disabled={loading}
               />
-              {errors.username && (
-                <p className="mt-1 text-xs text-red-500">{errors.username}</p>
+              {errors.email && (
+                <p className="mt-1 text-xs text-red-500">{errors.email}</p>
               )}
             </div>
 
@@ -127,6 +126,13 @@ const Login = () => {
               {errors.password && (
                 <p className="mt-1 text-xs text-red-500">{errors.password}</p>
               )}
+            </div>
+
+            {/* Forgot password */}
+            <div className="text-right -mt-1">
+              <Link to="/forgot-password" className="text-xs text-blue-600 hover:text-blue-800">
+                Mot de passe oublié ?
+              </Link>
             </div>
 
             {/* Submit */}

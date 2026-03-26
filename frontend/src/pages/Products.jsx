@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react'
 import { getProducts, getProductsPaginated, createProduct, updateProduct, deleteProduct, getProductHistory } from '../api/products'
+import { getStockByProduct } from '../api/dashboard'
 import AlertBadge from '../components/AlertBadge'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { useToast } from '../context/ToastContext'
+import { useAuth } from '../context/AuthContext'
 import Pagination from '../components/Pagination'
 import { exportToExcel } from '../utils/exportUtils'
-import { Plus, Pencil, Trash2, X, Loader2, Search, Package, History, TrendingUp, TrendingDown, ClipboardList, FileDown } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Loader2, Search, Package, History, TrendingUp, TrendingDown, ClipboardList, FileDown, LayoutGrid, MapPin } from 'lucide-react'
 
 const CATEGORIES = [
   { value: 'A', label: 'Catégorie A', color: 'bg-purple-100 text-purple-700' },
@@ -17,6 +19,10 @@ const emptyForm = { name: '', description: '', quantity: '', category: 'C', minQ
 
 const Products = () => {
   const toast = useToast()
+  const { isAdmin } = useAuth()
+  const [view, setView] = useState('catalogue') // 'catalogue' | 'stock-ville'
+  const [stockByProduct, setStockByProduct] = useState([])
+  const [stockLoading, setStockLoading] = useState(false)
   const [productsPage, setProductsPage] = useState({ content: [], totalElements: 0, totalPages: 0, currentPage: 0, pageSize: 20 })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -54,6 +60,23 @@ const Products = () => {
   }
 
   useEffect(() => { fetchProducts(0) }, [])
+
+  const fetchStockByProduct = async () => {
+    setStockLoading(true)
+    try {
+      const res = await getStockByProduct()
+      setStockByProduct(res.data)
+    } catch {
+      toast.error('Impossible de charger le stock par ville.')
+    } finally {
+      setStockLoading(false)
+    }
+  }
+
+  const switchView = (v) => {
+    setView(v)
+    if (v === 'stock-ville' && stockByProduct.length === 0) fetchStockByProduct()
+  }
 
   const openCreate = () => {
     setEditing(null)
@@ -203,18 +226,107 @@ const Products = () => {
           <p className="text-gray-500 text-sm mt-1">{productsPage.totalElements} produit(s) au total</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={handleExport} className="btn-secondary flex items-center gap-2">
-            <FileDown size={16} />
-            Exporter Excel
-          </button>
-          <button onClick={openCreate} className="btn-primary flex items-center gap-2">
-            <Plus size={16} />
-            Nouveau Produit
-          </button>
+          {view === 'catalogue' && (
+            <>
+              <button onClick={handleExport} className="btn-secondary flex items-center gap-2">
+                <FileDown size={16} /> Exporter Excel
+              </button>
+              <button onClick={openCreate} className="btn-primary flex items-center gap-2">
+                <Plus size={16} /> Nouveau Produit
+              </button>
+            </>
+          )}
+          {view === 'stock-ville' && (
+            <button onClick={fetchStockByProduct} className="btn-secondary flex items-center gap-2">
+              <Loader2 size={16} className={stockLoading ? 'animate-spin' : ''} /> Actualiser
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Search */}
+      {/* View tabs — admin only */}
+      {isAdmin && (
+        <div className="flex gap-1 p-1 bg-gray-100 rounded-xl w-fit">
+          <button
+            onClick={() => switchView('catalogue')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${view === 'catalogue' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            <Package size={15} /> Catalogue
+          </button>
+          <button
+            onClick={() => switchView('stock-ville')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${view === 'stock-ville' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            <MapPin size={15} /> Stock par ville
+          </button>
+        </div>
+      )}
+
+      {/* Stock par ville — admin only */}
+      {view === 'stock-ville' && (
+        <div className="card p-0 overflow-hidden">
+          {stockLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : stockByProduct.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-3">
+              <Package size={40} className="text-gray-300" />
+              <p className="text-gray-400">Aucune donnée de stock</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="border-b border-gray-100 bg-gray-50">
+                  <tr>
+                    <th className="table-header">Produit</th>
+                    <th className="table-header text-center">
+                      <span className="inline-flex items-center gap-1 text-blue-700"><MapPin size={12} /> Tanger</span>
+                    </th>
+                    <th className="table-header text-center">
+                      <span className="inline-flex items-center gap-1 text-emerald-700"><MapPin size={12} /> Meknès</span>
+                    </th>
+                    <th className="table-header text-center">
+                      <span className="inline-flex items-center gap-1 text-orange-700"><MapPin size={12} /> Casablanca</span>
+                    </th>
+                    <th className="table-header text-center font-bold">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {stockByProduct.map((row, i) => (
+                    <tr key={i} className="hover:bg-gray-50 transition-colors">
+                      <td className="table-cell font-semibold text-gray-800">{row.productName}</td>
+                      <td className="table-cell text-center">
+                        <span className={`font-medium ${row.stockTanger > 0 ? 'text-blue-600' : 'text-gray-300'}`}>
+                          {row.stockTanger > 0 ? row.stockTanger : '—'}
+                        </span>
+                      </td>
+                      <td className="table-cell text-center">
+                        <span className={`font-medium ${row.stockMeknes > 0 ? 'text-emerald-600' : 'text-gray-300'}`}>
+                          {row.stockMeknes > 0 ? row.stockMeknes : '—'}
+                        </span>
+                      </td>
+                      <td className="table-cell text-center">
+                        <span className={`font-medium ${row.stockCasablanca > 0 ? 'text-orange-600' : 'text-gray-300'}`}>
+                          {row.stockCasablanca > 0 ? row.stockCasablanca : '—'}
+                        </span>
+                      </td>
+                      <td className="table-cell text-center">
+                        <span className="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-800 font-bold text-sm">
+                          {row.totalStock}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Catalogue view */}
+      {view === 'catalogue' && <>
       <div className="relative">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
         <input
@@ -314,6 +426,7 @@ const Products = () => {
           onPageChange={(p) => fetchProducts(p)}
         />
       </div>
+      </>}
 
       {/* Create/Edit Modal */}
       {showModal && (

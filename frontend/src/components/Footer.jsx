@@ -21,15 +21,15 @@ const Footer = () => {
         <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-blue-200">
           <span className="flex items-center gap-1.5">
             <Phone size={12} className="text-orange-400" />
-            +212 XX XX XX XX
+            +212 539 394 717
           </span>
           <span className="flex items-center gap-1.5">
             <Mail size={12} className="text-orange-400" />
-            contact@locsa.ma
+            locsa@locsamaroc.ma
           </span>
           <span className="flex items-center gap-1.5">
             <MapPin size={12} className="text-orange-400" />
-            Maroc
+            Tanger · Casablanca
           </span>
         </div>
 

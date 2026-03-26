@@ -9,4 +9,5 @@ public class UpdateUserRequest {
     private String username;   // optional
     private Role role;         // optional
     private City city;         // optional
+    private String email;      // optional
 }

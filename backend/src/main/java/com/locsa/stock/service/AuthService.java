@@ -1,8 +1,10 @@
 package com.locsa.stock.service;
 
 import com.locsa.stock.dto.*;
+import com.locsa.stock.entity.PasswordResetToken;
 import com.locsa.stock.entity.Role;
 import com.locsa.stock.entity.User;
+import com.locsa.stock.repository.PasswordResetTokenRepository;
 import com.locsa.stock.repository.UserRepository;
 import com.locsa.stock.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
@@ -13,8 +15,11 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -26,6 +31,8 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final UserDetailsService userDetailsService;
     private final AuditService auditService;
+    private final EmailService emailService;
+    private final PasswordResetTokenRepository resetTokenRepository;
 
     private String currentAdmin() {
         try { return SecurityContextHolder.getContext().getAuthentication().getName(); }
@@ -33,14 +40,16 @@ public class AuthService {
     }
 
     public AuthResponse login(LoginRequest request) {
+        // Find user by email
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new RuntimeException("Email ou mot de passe incorrect"));
+
+        // Authenticate using the internal username (Spring Security principal)
         authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
+                new UsernamePasswordAuthenticationToken(user.getUsername(), request.getPassword())
         );
 
-        UserDetails userDetails = userDetailsService.loadUserByUsername(request.getUsername());
-        User user = userRepository.findByUsername(request.getUsername())
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
+        UserDetails userDetails = userDetailsService.loadUserByUsername(user.getUsername());
         String token = jwtUtil.generateToken(userDetails);
         String city = user.getCity() != null ? user.getCity().name() : null;
         String avatarUrl = user.getAvatarPath() != null ? "/api/users/" + user.getId() + "/avatar" : null;
@@ -54,15 +63,27 @@ public class AuthService {
         if (request.getRole() == Role.USER && request.getCity() == null) {
             throw new RuntimeException("La ville est requise pour un utilisateur");
         }
+        if (request.getEmail() != null && !request.getEmail().isBlank()
+                && userRepository.existsByEmail(request.getEmail())) {
+            throw new RuntimeException("Cet email est déjà utilisé");
+        }
+
+        String rawPassword = request.getPassword();
 
         User user = User.builder()
                 .username(request.getUsername())
-                .password(passwordEncoder.encode(request.getPassword()))
+                .password(passwordEncoder.encode(rawPassword))
                 .role(request.getRole())
                 .city(request.getRole() == Role.USER ? request.getCity() : null)
+                .email(request.getEmail() != null && !request.getEmail().isBlank() ? request.getEmail().trim() : null)
                 .build();
 
         userRepository.save(user);
+
+        // Send welcome email with credentials if email provided
+        if (user.getEmail() != null) {
+            emailService.sendWelcomeEmail(user.getEmail(), user.getUsername(), rawPassword);
+        }
 
         UserDetails userDetails = userDetailsService.loadUserByUsername(user.getUsername());
         String token = jwtUtil.generateToken(userDetails);
@@ -74,7 +95,8 @@ public class AuthService {
         return userRepository.findAll().stream()
                 .map(u -> new UserResponse(u.getId(), u.getUsername(), u.getRole().name(),
                         u.getCity() != null ? u.getCity().name() : null, u.isActive(),
-                        u.getAvatarPath() != null ? "/api/users/" + u.getId() + "/avatar" : null))
+                        u.getAvatarPath() != null ? "/api/users/" + u.getId() + "/avatar" : null,
+                        u.getEmail()))
                 .toList();
     }
 
@@ -98,7 +120,14 @@ public class AuthService {
         if (request.getCity() != null) {
             user.setCity(request.getCity());
         }
-        // Ensure USER always has a city
+        if (request.getEmail() != null) {
+            String newEmail = request.getEmail().trim();
+            if (!newEmail.isEmpty() && !newEmail.equals(user.getEmail())
+                    && userRepository.existsByEmail(newEmail)) {
+                throw new RuntimeException("Cet email est déjà utilisé");
+            }
+            user.setEmail(newEmail.isEmpty() ? null : newEmail);
+        }
         if (user.getRole() == Role.USER && user.getCity() == null) {
             throw new RuntimeException("La ville est requise pour un utilisateur");
         }
@@ -110,7 +139,8 @@ public class AuthService {
                 + (user.getCity() != null ? " ville=" + user.getCity().name() : ""), null);
         return new UserResponse(user.getId(), user.getUsername(), user.getRole().name(),
                 user.getCity() != null ? user.getCity().name() : null, user.isActive(),
-                user.getAvatarPath() != null ? "/api/users/" + user.getId() + "/avatar" : null);
+                user.getAvatarPath() != null ? "/api/users/" + user.getId() + "/avatar" : null,
+                user.getEmail());
     }
 
     public void changePassword(Long id, String newPassword) {
@@ -135,7 +165,8 @@ public class AuthService {
                 (wasSuspended ? "Compte réactivé: " : "Compte suspendu: ") + user.getUsername(), null);
         return new UserResponse(user.getId(), user.getUsername(), user.getRole().name(),
                 user.getCity() != null ? user.getCity().name() : null, user.isActive(),
-                user.getAvatarPath() != null ? "/api/users/" + user.getId() + "/avatar" : null);
+                user.getAvatarPath() != null ? "/api/users/" + user.getId() + "/avatar" : null,
+                user.getEmail());
     }
 
     public void deleteUser(Long id) {
@@ -144,5 +175,42 @@ public class AuthService {
         auditService.log("USER", id, "DELETE", currentAdmin(),
                 "Compte supprimé: " + user.getUsername(), null);
         userRepository.delete(user);
+    }
+
+    @Transactional
+    public void forgotPassword(String email) {
+        User user = userRepository.findByEmail(email).orElse(null);
+        if (user == null) return; // silent — don't reveal if email exists
+
+        // Delete old tokens
+        resetTokenRepository.deleteByUserId(user.getId());
+
+        String token = UUID.randomUUID().toString();
+        PasswordResetToken resetToken = PasswordResetToken.builder()
+                .token(token)
+                .user(user)
+                .expiresAt(LocalDateTime.now().plusHours(1))
+                .build();
+        resetTokenRepository.save(resetToken);
+
+        emailService.sendPasswordResetEmail(email, token);
+    }
+
+    @Transactional
+    public void resetPassword(String token, String newPassword) {
+        PasswordResetToken resetToken = resetTokenRepository.findByToken(token)
+                .orElseThrow(() -> new RuntimeException("Lien invalide ou expiré"));
+
+        if (resetToken.isUsed()) throw new RuntimeException("Ce lien a déjà été utilisé");
+        if (resetToken.getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new RuntimeException("Ce lien a expiré");
+        }
+
+        User user = resetToken.getUser();
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+
+        resetToken.setUsed(true);
+        resetTokenRepository.save(resetToken);
     }
 }
