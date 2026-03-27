@@ -186,24 +186,28 @@ const Navbar = ({ onMenuClick }) => {
 
                 {/* Actions */}
                 <div className="p-1.5 flex flex-col gap-0.5">
-                  <button
-                    onClick={openEditProfile}
-                    className="flex items-center gap-2.5 w-full px-3 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-xl transition-colors"
-                  >
-                    <div className="w-7 h-7 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
-                      <Pencil size={13} className="text-blue-600" />
-                    </div>
-                    Modifier mon profil
-                  </button>
-                  <button
-                    onClick={() => { setShowChangePwd(true); setDropdownOpen(false) }}
-                    className="flex items-center gap-2.5 w-full px-3 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-xl transition-colors"
-                  >
-                    <div className="w-7 h-7 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center">
-                      <KeyRound size={13} className="text-purple-600" />
-                    </div>
-                    Changer mon mot de passe
-                  </button>
+                  {isAdmin && (
+                    <>
+                      <button
+                        onClick={openEditProfile}
+                        className="flex items-center gap-2.5 w-full px-3 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-xl transition-colors"
+                      >
+                        <div className="w-7 h-7 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
+                          <Pencil size={13} className="text-blue-600" />
+                        </div>
+                        Modifier mon profil
+                      </button>
+                      <button
+                        onClick={() => { setShowChangePwd(true); setDropdownOpen(false) }}
+                        className="flex items-center gap-2.5 w-full px-3 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-xl transition-colors"
+                      >
+                        <div className="w-7 h-7 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center">
+                          <KeyRound size={13} className="text-purple-600" />
+                        </div>
+                        Changer mon mot de passe
+                      </button>
+                    </>
+                  )}
                   <div className="border-t border-gray-100 dark:border-gray-700 my-1" />
                   <button
                     onClick={handleLogout}

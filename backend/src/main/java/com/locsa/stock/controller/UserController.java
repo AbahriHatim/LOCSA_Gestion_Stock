@@ -55,23 +55,10 @@ public class UserController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> updateUser(@PathVariable Long id,
                                         @RequestBody UpdateUserRequest request,
                                         Authentication auth) {
-        boolean isAdmin = auth.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
-        User caller = userRepository.findByUsername(auth.getName()).orElse(null);
-        boolean isSelf = caller != null && caller.getId().equals(id);
-        if (!isAdmin && !isSelf) {
-            return ResponseEntity.status(403).body(Map.of("error", "Accès refusé"));
-        }
-        // Non-admin users can only update their own username and email
-        if (!isAdmin) {
-            UpdateUserRequest restricted = new UpdateUserRequest();
-            restricted.setUsername(request.getUsername());
-            restricted.setEmail(request.getEmail());
-            request = restricted;
-        }
         try {
             return ResponseEntity.ok(authService.updateUser(id, request));
         } catch (Exception e) {
@@ -80,16 +67,10 @@ public class UserController {
     }
 
     @PutMapping("/{id}/password")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> changePassword(@PathVariable Long id,
                                             @Valid @RequestBody ChangePasswordRequest request,
                                             Authentication auth) {
-        boolean isAdmin = auth.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
-        User caller = userRepository.findByUsername(auth.getName()).orElse(null);
-        boolean isSelf = caller != null && caller.getId().equals(id);
-        if (!isAdmin && !isSelf) {
-            return ResponseEntity.status(403).body(Map.of("error", "Accès refusé"));
-        }
         try {
             authService.changePassword(id, request.getNewPassword());
             return ResponseEntity.ok(Map.of("message", "Mot de passe modifié"));
