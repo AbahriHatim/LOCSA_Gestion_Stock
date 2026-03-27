@@ -58,6 +58,7 @@ public class SecurityConfig {
                 "http://localhost*",
                 "http://127.0.0.1*",
                 "https://locsamaroc.tech",
+                "http://locsamaroc.tech",
                 "https://www.locsamaroc.tech"
         ));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));

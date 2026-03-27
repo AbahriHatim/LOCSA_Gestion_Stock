@@ -89,7 +89,7 @@ public class AuthController {
         cookie.setHttpOnly(true);
         cookie.setPath("/");
         cookie.setMaxAge(8 * 60 * 60); // 8 hours
-        // cookie.setSecure(true); // enable when HTTPS is in use
+        cookie.setSecure(true);
         response.addCookie(cookie);
     }
 
@@ -98,6 +98,7 @@ public class AuthController {
         cookie.setHttpOnly(true);
         cookie.setPath("/");
         cookie.setMaxAge(0);
+        cookie.setSecure(true);
         response.addCookie(cookie);
     }
 }
