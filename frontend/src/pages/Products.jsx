@@ -541,7 +541,7 @@ const Products = () => {
       <ConfirmDialog
         isOpen={!!confirmDelete}
         title="Supprimer le produit"
-        message={`Supprimer "${confirmDelete?.name}" ? Cette action est irréversible.`}
+        message={`Supprimer "${confirmDelete?.name}" ? Toutes les entrées, sorties et inventaires liés seront également supprimés. Cette action est irréversible.`}
         confirmLabel="Supprimer"
         variant="danger"
         onConfirm={handleConfirmDelete}

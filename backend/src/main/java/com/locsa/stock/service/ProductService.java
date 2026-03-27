@@ -15,6 +15,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -94,18 +95,19 @@ public class ProductService {
         return toResponse(product);
     }
 
+    @Transactional
     public void deleteProduct(Long id) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Product not found with id: " + id));
+        String name = product.getName();
         long entries = stockEntryRepository.countByProductId(id);
         long exits   = stockExitRepository.countByProductId(id);
-        if (entries > 0 || exits > 0) {
-            throw new RuntimeException(
-                "Impossible de supprimer \"" + product.getName() + "\" : "
-                + (entries + exits) + " mouvement(s) enregistré(s). Désactivez le produit plutôt que de le supprimer."
-            );
-        }
-        auditService.log("PRODUCT", id, "DELETE", "system", "Produit supprimé: " + product.getName(), null);
+        // Cascade delete all related records then delete the product
+        inventoryRepository.deleteByProductId(id);
+        stockEntryRepository.deleteByProductId(id);
+        stockExitRepository.deleteByProductId(id);
+        auditService.log("PRODUCT", id, "DELETE", "system",
+                "Produit supprimé: " + name + " (" + (entries + exits) + " mouvement(s) supprimé(s))", null);
         productRepository.deleteById(id);
     }
 

@@ -13,6 +13,7 @@ import java.util.List;
 public interface StockEntryRepository extends JpaRepository<StockEntry, Long> {
 
     long countByProductId(Long productId);
+    void deleteByProductId(Long productId);
 
     List<StockEntry> findAllByOrderByDateEntryDesc();
     List<StockEntry> findByProductIdOrderByDateEntryDesc(Long productId);
