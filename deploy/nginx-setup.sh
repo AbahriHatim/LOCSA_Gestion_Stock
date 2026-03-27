@@ -17,7 +17,7 @@ echo "Configuration Nginx pour : $DOMAIN"
 sudo tee /etc/nginx/sites-available/locsa > /dev/null <<EOF
 server {
     listen 80;
-    server_name locsamaroc.tech www.locsamaroc.tech;
+    server_name 72.62.27.110;
 
     location / {
         proxy_pass http://127.0.0.1:81;
