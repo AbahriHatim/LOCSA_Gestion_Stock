@@ -43,9 +43,8 @@ services:
       - proxy
     labels:
       - "traefik.enable=true"
-
-      # API router
-      - "traefik.http.routers.locsa-api.rule=Host(`locsamaroc.tech`) && PathPrefix(`/api`)"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.locsa-api.rule=(Host(`www.locsamaroc.tech`) || Host(`locsamaroc.tech`)) && PathPrefix(`/api`)"
       - "traefik.http.routers.locsa-api.entrypoints=websecure"
       - "traefik.http.routers.locsa-api.tls=true"
       - "traefik.http.routers.locsa-api.tls.certresolver=myresolver"
@@ -61,9 +60,8 @@ services:
       - proxy
     labels:
       - "traefik.enable=true"
-
-      # Front router
-      - "traefik.http.routers.locsa-front.rule=Host(`locsamaroc.tech`) || Host(`www.locsamaroc.tech`)"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.locsa-front.rule=Host(`www.locsamaroc.tech`) || Host(`locsamaroc.tech`)"
       - "traefik.http.routers.locsa-front.entrypoints=websecure"
       - "traefik.http.routers.locsa-front.tls=true"
       - "traefik.http.routers.locsa-front.tls.certresolver=myresolver"
