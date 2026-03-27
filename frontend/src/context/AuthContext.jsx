@@ -76,6 +76,14 @@ export const AuthProvider = ({ children }) => {
     })
   }
 
+  const updateUserData = (fields) => {
+    setUser(prev => {
+      const updated = { ...prev, ...fields }
+      localStorage.setItem('user', JSON.stringify(updated))
+      return updated
+    })
+  }
+
   const logout = () => {
     clearTimers()
     logoutApi().catch(() => {}) // clear server-side cookie
@@ -90,6 +98,7 @@ export const AuthProvider = ({ children }) => {
     login,
     logout,
     updateAvatar,
+    updateUserData,
     loading,
     sessionWarning,
     dismissWarning: () => setSessionWarning(false),
