@@ -110,17 +110,16 @@ public class ProductService {
                     "Produit supprimé (toutes villes): " + name, null);
             productRepository.deleteById(id);
         } else {
-            // Delete only records for the given city, adjust global stock
-            Long cityEntries = stockEntryRepository.getTotalEntriesByProductAndCity(id, city);
-            Long cityExits   = stockExitRepository.getTotalExitsByProductAndCity(id, city);
-            long cityNet = (cityEntries == null ? 0 : cityEntries) - (cityExits == null ? 0 : cityExits);
-
+            // Delete only records for the given city
             inventoryRepository.deleteByProductIdAndCity(id, city);
             stockEntryRepository.deleteByProductIdAndCity(id, city);
             stockExitRepository.deleteByProductIdAndCity(id, city);
 
-            // Adjust global stock
-            product.setQuantity(Math.max(0, product.getQuantity() - cityNet));
+            // Recalculate global stock from remaining entries/exits (more accurate than arithmetic adjustment)
+            Long totalEntries = stockEntryRepository.getTotalEntriesByProduct(id);
+            Long totalExits   = stockExitRepository.getTotalExitsByProduct(id);
+            long newStock = (totalEntries == null ? 0 : totalEntries) - (totalExits == null ? 0 : totalExits);
+            product.setQuantity(Math.max(0, newStock));
             productRepository.save(product);
 
             auditService.log("PRODUCT", id, "UPDATE", "system",
