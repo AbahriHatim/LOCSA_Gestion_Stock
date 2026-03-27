@@ -33,6 +33,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-locsa_password}
       JWT_SECRET: locsaSarl2024SecretKeyForJWTTokenGenerationMustBe256BitsLong
       JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+      APP_COOKIE_SECURE: "true"
     volumes:
       - ./uploads:/app/uploads
     depends_on:
