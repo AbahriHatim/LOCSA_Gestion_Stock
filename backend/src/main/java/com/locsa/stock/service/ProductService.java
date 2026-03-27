@@ -96,19 +96,36 @@ public class ProductService {
     }
 
     @Transactional
-    public void deleteProduct(Long id) {
+    public void deleteProduct(Long id, City city) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Product not found with id: " + id));
         String name = product.getName();
-        long entries = stockEntryRepository.countByProductId(id);
-        long exits   = stockExitRepository.countByProductId(id);
-        // Cascade delete all related records then delete the product
-        inventoryRepository.deleteByProductId(id);
-        stockEntryRepository.deleteByProductId(id);
-        stockExitRepository.deleteByProductId(id);
-        auditService.log("PRODUCT", id, "DELETE", "system",
-                "Produit supprimé: " + name + " (" + (entries + exits) + " mouvement(s) supprimé(s))", null);
-        productRepository.deleteById(id);
+
+        if (city == null) {
+            // Delete all — remove product entirely
+            inventoryRepository.deleteByProductId(id);
+            stockEntryRepository.deleteByProductId(id);
+            stockExitRepository.deleteByProductId(id);
+            auditService.log("PRODUCT", id, "DELETE", "system",
+                    "Produit supprimé (toutes villes): " + name, null);
+            productRepository.deleteById(id);
+        } else {
+            // Delete only records for the given city, adjust global stock
+            Long cityEntries = stockEntryRepository.getTotalEntriesByProductAndCity(id, city);
+            Long cityExits   = stockExitRepository.getTotalExitsByProductAndCity(id, city);
+            long cityNet = (cityEntries == null ? 0 : cityEntries) - (cityExits == null ? 0 : cityExits);
+
+            inventoryRepository.deleteByProductIdAndCity(id, city);
+            stockEntryRepository.deleteByProductIdAndCity(id, city);
+            stockExitRepository.deleteByProductIdAndCity(id, city);
+
+            // Adjust global stock
+            product.setQuantity(Math.max(0, product.getQuantity() - cityNet));
+            productRepository.save(product);
+
+            auditService.log("PRODUCT", id, "UPDATE", "system",
+                    "Données supprimées pour ville " + city.name() + ": " + name, city);
+        }
     }
 
     public PageResponse<ProductHistoryItem> getProductHistory(Long productId, City city, int page, int size) {

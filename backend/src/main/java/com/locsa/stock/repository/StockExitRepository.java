@@ -14,6 +14,7 @@ public interface StockExitRepository extends JpaRepository<StockExit, Long> {
 
     long countByProductId(Long productId);
     void deleteByProductId(Long productId);
+    void deleteByProductIdAndCity(Long productId, City city);
 
     List<StockExit> findAllByOrderByDateExitDesc();
     List<StockExit> findByProductIdOrderByDateExitDesc(Long productId);

@@ -37,7 +37,8 @@ const Products = () => {
   const [formError, setFormError] = useState('')
 
   // Delete confirmation
-  const [confirmDelete, setConfirmDelete] = useState(null)
+  const [deleteCityPicker, setDeleteCityPicker] = useState(null) // product waiting for city choice
+  const [confirmDelete, setConfirmDelete] = useState(null)       // { product, city }
   const [deleteLoading, setDeleteLoading] = useState(false)
 
   // History modal
@@ -158,12 +159,14 @@ const Products = () => {
     if (!confirmDelete) return
     setDeleteLoading(true)
     try {
-      await deleteProduct(confirmDelete.id)
-      toast.success('Produit supprimé')
+      await deleteProduct(confirmDelete.product.id, confirmDelete.city || null)
+      toast.success(confirmDelete.city
+        ? `Données de ${confirmDelete.city} supprimées`
+        : 'Produit supprimé (toutes villes)')
       setConfirmDelete(null)
       fetchProducts(productsPage.currentPage)
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Impossible de supprimer ce produit.')
+      toast.error(err.response?.data?.error || 'Impossible de supprimer.')
       setConfirmDelete(null)
     } finally {
       setDeleteLoading(false)
@@ -404,7 +407,7 @@ const Products = () => {
                           <Pencil size={15} />
                         </button>
                         <button
-                          onClick={() => setConfirmDelete(product)}
+                          onClick={() => setDeleteCityPicker(product)}
                           className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                           title="Supprimer"
                         >
@@ -538,10 +541,48 @@ const Products = () => {
         </div>
       )}
 
+      {/* City picker modal */}
+      {deleteCityPicker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Supprimer les données de</h3>
+            <p className="text-sm text-gray-500 mb-5">
+              Produit : <strong>{deleteCityPicker.name}</strong>
+            </p>
+            <div className="flex flex-col gap-2">
+              {['TANGER', 'MEKNES', 'CASABLANCA'].map(city => (
+                <button
+                  key={city}
+                  onClick={() => { setConfirmDelete({ product: deleteCityPicker, city }); setDeleteCityPicker(null) }}
+                  className="w-full px-4 py-3 text-sm font-medium text-left bg-gray-50 hover:bg-red-50 hover:text-red-700 border border-gray-200 hover:border-red-200 rounded-xl transition-colors"
+                >
+                  🏙 {city.charAt(0) + city.slice(1).toLowerCase()} uniquement
+                </button>
+              ))}
+              <button
+                onClick={() => { setConfirmDelete({ product: deleteCityPicker, city: null }); setDeleteCityPicker(null) }}
+                className="w-full px-4 py-3 text-sm font-bold text-left bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl transition-colors mt-1"
+              >
+                🗑 Toutes les villes (supprimer le produit entier)
+              </button>
+              <button
+                onClick={() => setDeleteCityPicker(null)}
+                className="w-full px-4 py-2 text-sm text-gray-500 hover:text-gray-700 rounded-xl transition-colors"
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <ConfirmDialog
         isOpen={!!confirmDelete}
-        title="Supprimer le produit"
-        message={`Supprimer "${confirmDelete?.name}" ? Toutes les entrées, sorties et inventaires liés seront également supprimés. Cette action est irréversible.`}
+        title={confirmDelete?.city ? `Supprimer données — ${confirmDelete.city}` : 'Supprimer le produit'}
+        message={confirmDelete?.city
+          ? `Supprimer toutes les entrées, sorties et inventaires de "${confirmDelete?.product?.name}" pour la ville ${confirmDelete.city} ? Cette action est irréversible.`
+          : `Supprimer "${confirmDelete?.product?.name}" et toutes ses données (toutes villes) ? Cette action est irréversible.`
+        }
         confirmLabel="Supprimer"
         variant="danger"
         onConfirm={handleConfirmDelete}

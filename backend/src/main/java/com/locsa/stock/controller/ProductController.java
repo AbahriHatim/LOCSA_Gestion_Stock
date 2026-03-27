@@ -85,10 +85,16 @@ public class ProductController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<?> deleteProduct(@PathVariable Long id) {
+    public ResponseEntity<?> deleteProduct(
+            @PathVariable Long id,
+            @RequestParam(required = false) String city) {
         try {
-            productService.deleteProduct(id);
-            return ResponseEntity.ok(Map.of("message", "Product deleted successfully"));
+            City cityEnum = null;
+            if (city != null && !city.isBlank()) {
+                try { cityEnum = City.valueOf(city.toUpperCase()); } catch (IllegalArgumentException ignored) {}
+            }
+            productService.deleteProduct(id, cityEnum);
+            return ResponseEntity.ok(Map.of("message", "Suppression effectuée"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }

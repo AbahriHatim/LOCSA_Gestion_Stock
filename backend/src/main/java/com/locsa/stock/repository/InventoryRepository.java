@@ -23,6 +23,7 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
 
     List<Inventory> findByProductIdOrderByDateInventoryDesc(Long productId);
     void deleteByProductId(Long productId);
+    void deleteByProductIdAndCity(Long productId, com.locsa.stock.entity.City city);
 
     @Query("SELECT COUNT(i) FROM Inventory i WHERE i.difference < 0")
     long countNegativeGap();
